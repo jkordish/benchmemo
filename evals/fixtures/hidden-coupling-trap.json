@@ -1,0 +1,337 @@
+{
+  "name": "hidden-coupling trap",
+  "brief": {
+    "id": "fixture_hidden_coupling",
+    "title": "Split the Codex runner into a service?",
+    "question": "Should BenchMemo extract repo probing into a separate service now, or keep the current in-process runner?",
+    "repo": {
+      "provider": "github",
+      "repoName": "jkordish/benchmemo",
+      "branch": "main",
+      "localPath": "/repo/benchmemo",
+      "paths": ["apps/api", "workers/codex-runner"]
+    },
+    "options": [
+      {
+        "id": "opt_inline",
+        "name": "Keep the current in-process runner",
+        "description": "Retain repo probing inside the current API process for now."
+      },
+      {
+        "id": "opt_service",
+        "name": "Extract a separate probe service",
+        "description": "Move repo probing into a standalone service immediately."
+      }
+    ],
+    "constraints": ["Avoid hidden integration work"],
+    "criteria": [
+      { "id": "risk", "name": "Risk", "weight": 65 },
+      { "id": "velocity", "name": "Velocity", "weight": 35 }
+    ],
+    "reversibility": "costly_reversible",
+    "horizon": "weeks",
+    "attachments": []
+  },
+  "frame": {
+    "decisionId": "fixture_hidden_coupling",
+    "normalizedQuestion": "Should BenchMemo extract repo probing into a separate service now, or keep the current in-process runner?",
+    "options": [
+      {
+        "id": "opt_inline",
+        "name": "Keep the current in-process runner",
+        "description": "Retain repo probing inside the current API process for now."
+      },
+      {
+        "id": "opt_service",
+        "name": "Extract a separate probe service",
+        "description": "Move repo probing into a standalone service immediately."
+      }
+    ],
+    "constraints": ["Avoid hidden integration work"],
+    "criteria": [
+      {
+        "id": "risk",
+        "name": "Risk",
+        "weight": 65,
+        "scoringGuidance": "Prefer the option with fewer hidden dependencies and less coordination risk."
+      },
+      {
+        "id": "velocity",
+        "name": "Velocity",
+        "weight": 35,
+        "scoringGuidance": "Prefer the option that keeps progress high in the current milestone."
+      }
+    ],
+    "unknowns": [],
+    "requiredEvidence": ["repo"],
+    "notesForAgents": []
+  },
+  "advocateCases": {
+    "opt_inline": {
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_inline",
+      "summary": "Avoid an early service split.",
+      "claims": [
+        {
+          "id": "adv_inline_coupling",
+          "decisionId": "fixture_hidden_coupling",
+          "optionId": "opt_inline",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "Keeping the runner in-process avoids hidden orchestration work.",
+          "rationale": "The current worker and API still share assumptions and tests.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.8,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    },
+    "opt_service": {
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_service",
+      "summary": "A service split could create cleaner boundaries later.",
+      "claims": [
+        {
+          "id": "adv_service_coupling",
+          "decisionId": "fixture_hidden_coupling",
+          "optionId": "opt_service",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "A separate service could isolate repo probing concerns.",
+          "rationale": "Dedicated infrastructure sometimes clarifies ownership.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.66,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    }
+  },
+  "skepticCases": {
+    "opt_inline": {
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_inline",
+      "summary": "Inline execution can become crowded later.",
+      "claims": [
+        {
+          "id": "ske_inline_coupling",
+          "decisionId": "fixture_hidden_coupling",
+          "optionId": "opt_inline",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "The current API process could become crowded over time.",
+          "rationale": "Future scale might still justify a split later.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.52,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    },
+    "opt_service": {
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_service",
+      "summary": "The service split hides more coupling than it first appears.",
+      "claims": [
+        {
+          "id": "ske_service_coupling",
+          "decisionId": "fixture_hidden_coupling",
+          "optionId": "opt_service",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "The probe worker is still tightly coupled to API orchestration and tests.",
+          "rationale": "A service split would spread one coherent path across more boundaries.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.84,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    }
+  },
+  "repoProbes": [
+    {
+      "taskId": "probe_inline_coupling_impact",
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_inline",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Keeping the runner in-process mostly preserves the existing orchestration shape.",
+      "touchedAreas": ["apps/api/src/orchestrator/decision-runner.ts", "workers/codex-runner/src/exec.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/orchestrator/decision-runner.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.82,
+      "rawArtifactPath": "/tmp/hidden_inline_impact.json"
+    },
+    {
+      "taskId": "probe_inline_coupling_risk",
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_inline",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Inline execution keeps current coupling explicit instead of distributing it across a network boundary.",
+      "touchedAreas": ["apps/api/src/orchestrator/decision-runner.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/orchestrator/decision-runner.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.79,
+      "rawArtifactPath": "/tmp/hidden_inline_risk.json"
+    },
+    {
+      "taskId": "probe_service_coupling_impact",
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_service",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "A service split would require APIs, job handoff, and artifact contract changes.",
+      "touchedAreas": ["apps/api/src/orchestrator/decision-runner.ts", "workers/codex-runner/src/exec.ts", "packages/shared/src/schemas.ts"],
+      "hiddenDependencies": ["Artifact shape coupling", "Run-state lifecycle coupling"],
+      "likelyTestSurface": ["apps/api/src/server.test.ts", "apps/api/src/orchestrator/decision-runner.test.ts"],
+      "migrationHazards": ["Cross-process run coordination would be new."],
+      "operationalRisks": [],
+      "estimatedComplexity": "high",
+      "confidence": 0.86,
+      "rawArtifactPath": "/tmp/hidden_service_impact.json"
+    },
+    {
+      "taskId": "probe_service_coupling_risk",
+      "decisionId": "fixture_hidden_coupling",
+      "optionId": "opt_service",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "The service split would create hidden coordination risk across orchestration, artifacts, and tests.",
+      "touchedAreas": ["apps/api/src/orchestrator/decision-runner.ts", "apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": ["Decision record artifact lifecycle", "Probe retry semantics"],
+      "likelyTestSurface": ["apps/api/src/server.test.ts", "apps/api/src/orchestrator/repo-probes.test.ts"],
+      "migrationHazards": ["More boundary contracts would need to stabilize at once."],
+      "operationalRisks": ["On-call diagnosis would span more moving parts."],
+      "estimatedComplexity": "high",
+      "confidence": 0.88,
+      "rawArtifactPath": "/tmp/hidden_service_risk.json"
+    }
+  ],
+  "evidenceBundle": {
+    "decisionId": "fixture_hidden_coupling",
+    "evidenceItems": [
+      {
+        "id": "ev_hidden_inline",
+        "decisionId": "fixture_hidden_coupling",
+        "sourceType": "repo",
+        "title": "Current orchestration keeps probe coordination in one place",
+        "locator": "apps/api/src/orchestrator/decision-runner.ts",
+        "excerpt": "The current code already coordinates probe fan-out, artifacts, and final memo generation in one path.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["adv_inline_coupling"],
+        "contradictsClaimIds": ["ske_inline_coupling"]
+      },
+      {
+        "id": "ev_hidden_service",
+        "decisionId": "fixture_hidden_coupling",
+        "sourceType": "repo",
+        "title": "Service split would add hidden coupling across artifacts and run state",
+        "locator": "apps/api/src/orchestrator/decision-runner.ts, packages/shared/src/schemas.ts",
+        "excerpt": "The current runner, artifacts, and schemas still move together, so an early split would create hidden coupling at the network boundary.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["ske_service_coupling"],
+        "contradictsClaimIds": ["adv_service_coupling"]
+      }
+    ],
+    "claimStatuses": [
+      {
+        "claimId": "adv_inline_coupling",
+        "status": "verified",
+        "evidenceIds": ["ev_hidden_inline"],
+        "notes": "The current orchestration shape is coherent."
+      },
+      {
+        "claimId": "adv_service_coupling",
+        "status": "contradicted",
+        "evidenceIds": ["ev_hidden_service"],
+        "notes": "The proposed service split hides more coupling than it removes."
+      },
+      {
+        "claimId": "ske_inline_coupling",
+        "status": "contradicted",
+        "evidenceIds": ["ev_hidden_inline"],
+        "notes": "The inline path is not yet the pressing problem."
+      },
+      {
+        "claimId": "ske_service_coupling",
+        "status": "verified",
+        "evidenceIds": ["ev_hidden_service"],
+        "notes": "The coupling is real and near-term."
+      }
+    ],
+    "unresolvedQuestions": []
+  },
+  "judgeDraft": {
+    "decisionId": "fixture_hidden_coupling",
+    "verdict": "approve",
+    "recommendedOptionId": "opt_inline",
+    "executiveSummary": "Keep the runner in-process for now because a service split would introduce hidden coupling across orchestration, artifacts, and tests before those contracts have stabilized.",
+    "optionScores": [
+      {
+        "optionId": "opt_inline",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 4,
+            "rationale": "Keeping the runner in-process avoids hidden coupling at a new network boundary.",
+            "evidenceIds": ["ev_hidden_inline", "ev_hidden_service"]
+          },
+          {
+            "criterionId": "velocity",
+            "score": 4,
+            "rationale": "The current path preserves focus during the milestone.",
+            "evidenceIds": ["ev_hidden_inline"]
+          }
+        ]
+      },
+      {
+        "optionId": "opt_service",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 2,
+            "rationale": "The service split creates hidden coupling across run state and artifacts.",
+            "evidenceIds": ["ev_hidden_service"]
+          },
+          {
+            "criterionId": "velocity",
+            "score": 2,
+            "rationale": "Splitting now expands implementation surface during a short horizon.",
+            "evidenceIds": ["ev_hidden_service"]
+          }
+        ]
+      }
+    ],
+    "keyRisks": ["A service split now would add coordination risk before the contracts are settled."],
+    "dissent": ["If the runner becomes a clear scaling bottleneck, a service split should be reconsidered later."],
+    "evidenceGaps": [],
+    "nextSteps": ["Map the shared contracts first if a future service split becomes necessary."]
+  },
+  "expected": {
+    "verdict": "approve",
+    "recommendedOptionId": "opt_inline",
+    "requiredEvidenceGaps": [],
+    "requiredNextSteps": ["Map the shared contracts first"],
+    "requiredSummaryIncludes": ["hidden coupling"],
+    "scoreOrder": ["opt_inline", "opt_service"]
+  }
+}

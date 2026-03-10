@@ -1,0 +1,337 @@
+{
+  "name": "easy winner",
+  "brief": {
+    "id": "fixture_easy_winner",
+    "title": "Keep JSON store or move to SQLite?",
+    "question": "Should BenchMemo keep file-backed persistence for the next milestone, or move to SQLite now?",
+    "repo": {
+      "provider": "github",
+      "repoName": "jkordish/benchmemo",
+      "branch": "main",
+      "localPath": "/repo/benchmemo",
+      "paths": ["apps/api", "packages/shared", "workers/codex-runner"]
+    },
+    "options": [
+      {
+        "id": "opt_file",
+        "name": "Keep file-backed persistence",
+        "description": "Retain JSON-on-disk for the next milestone and focus on product workflow."
+      },
+      {
+        "id": "opt_sqlite",
+        "name": "Move to SQLite now",
+        "description": "Adopt SQLite before more product work to improve persistence durability."
+      }
+    ],
+    "constraints": ["Keep local setup simple", "Do not derail the next milestone"],
+    "criteria": [
+      { "id": "risk", "name": "Risk", "weight": 60 },
+      { "id": "velocity", "name": "Velocity", "weight": 40 }
+    ],
+    "reversibility": "costly_reversible",
+    "horizon": "weeks",
+    "attachments": []
+  },
+  "frame": {
+    "decisionId": "fixture_easy_winner",
+    "normalizedQuestion": "Should BenchMemo keep file-backed persistence for the next milestone, or move to SQLite now?",
+    "options": [
+      {
+        "id": "opt_file",
+        "name": "Keep file-backed persistence",
+        "description": "Retain JSON-on-disk for the next milestone and focus on product workflow."
+      },
+      {
+        "id": "opt_sqlite",
+        "name": "Move to SQLite now",
+        "description": "Adopt SQLite before more product work to improve persistence durability."
+      }
+    ],
+    "constraints": ["Keep local setup simple", "Do not derail the next milestone"],
+    "criteria": [
+      {
+        "id": "risk",
+        "name": "Risk",
+        "weight": 60,
+        "scoringGuidance": "Prefer the option with the lower migration and rollback risk."
+      },
+      {
+        "id": "velocity",
+        "name": "Velocity",
+        "weight": 40,
+        "scoringGuidance": "Prefer the option that preserves delivery speed during the next milestone."
+      }
+    ],
+    "unknowns": [],
+    "requiredEvidence": ["repo"],
+    "notesForAgents": []
+  },
+  "advocateCases": {
+    "opt_file": {
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_file",
+      "summary": "Keep the current store while product surface is still moving quickly.",
+      "claims": [
+        {
+          "id": "adv_opt_file_easy",
+          "decisionId": "fixture_easy_winner",
+          "optionId": "opt_file",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "The current JSON store is good enough for the next milestone.",
+          "rationale": "It already supports the current workflow and avoids migration churn.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.79,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    },
+    "opt_sqlite": {
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_sqlite",
+      "summary": "Move now to avoid revisiting persistence later.",
+      "claims": [
+        {
+          "id": "adv_opt_sqlite_easy",
+          "decisionId": "fixture_easy_winner",
+          "optionId": "opt_sqlite",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "SQLite would make persistence more durable immediately.",
+          "rationale": "A database-backed path could improve correctness and query flexibility.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.72,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    }
+  },
+  "skepticCases": {
+    "opt_file": {
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_file",
+      "summary": "Staying on JSON can hide future scaling problems.",
+      "claims": [
+        {
+          "id": "ske_opt_file_easy",
+          "decisionId": "fixture_easy_winner",
+          "optionId": "opt_file",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "JSON persistence may become a bottleneck later.",
+          "rationale": "File-backed storage can become painful if concurrency or query needs expand.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.58,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    },
+    "opt_sqlite": {
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_sqlite",
+      "summary": "Migrating now costs time the milestone does not have.",
+      "claims": [
+        {
+          "id": "ske_opt_sqlite_easy",
+          "decisionId": "fixture_easy_winner",
+          "optionId": "opt_sqlite",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "SQLite would introduce avoidable migration work right now.",
+          "rationale": "The repo already has a working store, so a migration would expand scope.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.8,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    }
+  },
+  "repoProbes": [
+    {
+      "taskId": "probe_easy_file_impact",
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_file",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "The current JSON persistence is already isolated behind the file decision store and atomic writes.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": ["Longer-term concurrency concerns remain if multiple writers are introduced."],
+      "estimatedComplexity": "low",
+      "confidence": 0.84,
+      "rawArtifactPath": "/tmp/easy_file_impact.json"
+    },
+    {
+      "taskId": "probe_easy_file_risk",
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_file",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Keeping the current store avoids a migration and preserves the current test surface.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts", "apps/api/src/orchestrator/decision-runner.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.81,
+      "rawArtifactPath": "/tmp/easy_file_risk.json"
+    },
+    {
+      "taskId": "probe_easy_sqlite_impact",
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_sqlite",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Switching to SQLite would touch the store, data layout, and tests.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts", "apps/api/src/server.test.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts", "apps/api/src/orchestrator/decision-runner.test.ts"],
+      "migrationHazards": ["Existing JSON data would need a migration path."],
+      "operationalRisks": [],
+      "estimatedComplexity": "medium",
+      "confidence": 0.76,
+      "rawArtifactPath": "/tmp/easy_sqlite_impact.json"
+    },
+    {
+      "taskId": "probe_easy_sqlite_risk",
+      "decisionId": "fixture_easy_winner",
+      "optionId": "opt_sqlite",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "SQLite adds migration and rollback work without solving a verified near-term pain.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": ["Migration correctness would need new tests and rollback handling."],
+      "operationalRisks": ["Developer setup complexity could increase."],
+      "estimatedComplexity": "medium",
+      "confidence": 0.79,
+      "rawArtifactPath": "/tmp/easy_sqlite_risk.json"
+    }
+  ],
+  "evidenceBundle": {
+    "decisionId": "fixture_easy_winner",
+    "evidenceItems": [
+      {
+        "id": "ev_easy_keep",
+        "decisionId": "fixture_easy_winner",
+        "sourceType": "repo",
+        "title": "Current JSON store is isolated and already atomic",
+        "locator": "apps/api/src/store/decision-store.ts",
+        "excerpt": "The current store already writes atomically and keeps persistence logic centralized.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["adv_opt_file_easy", "ske_opt_sqlite_easy"],
+        "contradictsClaimIds": ["ske_opt_file_easy"]
+      },
+      {
+        "id": "ev_easy_sqlite",
+        "decisionId": "fixture_easy_winner",
+        "sourceType": "repo",
+        "title": "SQLite would expand the migration surface",
+        "locator": "apps/api/src/store/decision-store.ts, apps/api/src/server.test.ts",
+        "excerpt": "A SQLite migration would change persistence format, tests, and rollback expectations.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["ske_opt_sqlite_easy"],
+        "contradictsClaimIds": ["adv_opt_sqlite_easy"]
+      }
+    ],
+    "claimStatuses": [
+      {
+        "claimId": "adv_opt_file_easy",
+        "status": "verified",
+        "evidenceIds": ["ev_easy_keep"],
+        "notes": "Repo evidence supports keeping the current store for the short horizon."
+      },
+      {
+        "claimId": "adv_opt_sqlite_easy",
+        "status": "contradicted",
+        "evidenceIds": ["ev_easy_sqlite"],
+        "notes": "The repo evidence shows migration work with no verified near-term payoff."
+      },
+      {
+        "claimId": "ske_opt_file_easy",
+        "status": "contradicted",
+        "evidenceIds": ["ev_easy_keep"],
+        "notes": "The current repo shape does not show an immediate concurrency or query crisis."
+      },
+      {
+        "claimId": "ske_opt_sqlite_easy",
+        "status": "verified",
+        "evidenceIds": ["ev_easy_keep", "ev_easy_sqlite"],
+        "notes": "Migration work is real and near-term."
+      }
+    ],
+    "unresolvedQuestions": []
+  },
+  "judgeDraft": {
+    "decisionId": "fixture_easy_winner",
+    "verdict": "approve",
+    "recommendedOptionId": "opt_file",
+    "executiveSummary": "Keep file-backed persistence for the next milestone because the repo evidence shows the current store is already centralized and SQLite would add migration work without a verified near-term payoff.",
+    "optionScores": [
+      {
+        "optionId": "opt_file",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 4,
+            "rationale": "Keeping the current store avoids an unnecessary migration and preserves the current rollback shape.",
+            "evidenceIds": ["ev_easy_keep"]
+          },
+          {
+            "criterionId": "velocity",
+            "score": 5,
+            "rationale": "This option preserves milestone focus and avoids persistence churn.",
+            "evidenceIds": ["ev_easy_keep"]
+          }
+        ]
+      },
+      {
+        "optionId": "opt_sqlite",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 3,
+            "rationale": "SQLite could help eventually, but it introduces migration and rollback work immediately.",
+            "evidenceIds": ["ev_easy_sqlite"]
+          },
+          {
+            "criterionId": "velocity",
+            "score": 2,
+            "rationale": "Adopting SQLite now would slow the next milestone.",
+            "evidenceIds": ["ev_easy_sqlite"]
+          }
+        ]
+      }
+    ],
+    "keyRisks": ["JSON persistence should be revisited once multi-writer workflows appear."],
+    "dissent": ["If the roadmap suddenly requires transactions or richer queries, SQLite should move up."],
+    "evidenceGaps": [],
+    "nextSteps": ["Revisit persistence once the product needs exceed the current file-backed store."]
+  },
+  "expected": {
+    "verdict": "approve",
+    "recommendedOptionId": "opt_file",
+    "requiredEvidenceGaps": [],
+    "requiredNextSteps": [],
+    "requiredSummaryIncludes": ["Keep file-backed persistence"],
+    "scoreOrder": ["opt_file", "opt_sqlite"]
+  }
+}

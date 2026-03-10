@@ -106,6 +106,14 @@ export const EvidenceItemSchema = z.object({
 
 export const RepoProbeTypeSchema = z.enum(['impact_scan', 'risk_scan', 'migration_scan']);
 export const RepoProbeOutputSchemaNameSchema = z.enum(['impact-scan', 'risk-scan']);
+export const RepoProbeFailureKindSchema = z.enum([
+  'auth',
+  'transport',
+  'timeout',
+  'cli',
+  'invalid_output',
+]);
+export const RepoProbeFailurePhaseSchema = z.enum(['preflight', 'execution']);
 
 export const RepoProbeRequestSchema = z.object({
   decisionId: z.string().min(1),
@@ -146,6 +154,9 @@ export const RepoProbeFailureSchema = z.object({
   status: z.literal('failed'),
   attempts: z.number().int().min(1),
   errorMessage: z.string().min(1),
+  failureKind: RepoProbeFailureKindSchema,
+  failurePhase: RepoProbeFailurePhaseSchema,
+  retryable: z.boolean(),
   timedOut: z.boolean(),
   stderrSummary: z.string().default(''),
   eventSummary: z.string().default(''),
@@ -286,6 +297,8 @@ export type RepoProbeResult = z.infer<typeof RepoProbeResultSchema>;
 export type RepoProbeFailure = z.infer<typeof RepoProbeFailureSchema>;
 export type RepoProbeOutcome = z.infer<typeof RepoProbeOutcomeSchema>;
 export type RepoProbeCoverage = z.infer<typeof RepoProbeCoverageSchema>;
+export type RepoProbeFailureKind = z.infer<typeof RepoProbeFailureKindSchema>;
+export type RepoProbeFailurePhase = z.infer<typeof RepoProbeFailurePhaseSchema>;
 export type JudgeDraft = z.infer<typeof JudgeDraftSchema>;
 export type FinalMemo = z.infer<typeof FinalMemoSchema>;
 export type DecisionRunStep = z.infer<typeof DecisionRunStepSchema>;

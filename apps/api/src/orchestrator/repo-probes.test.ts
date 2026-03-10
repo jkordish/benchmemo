@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { RepoProbeFailure, RepoProbeRequest, RepoProbeResult } from '@benchmemo/shared';
-import { mapWithConcurrency, runProbeWithRetry } from './repo-probes.js';
+import { mapWithConcurrency, runProbeWithRetry, runRepoProbes } from './repo-probes.js';
 
 test('mapWithConcurrency respects the concurrency cap and preserves order', async () => {
   const items = [30, 5, 20, 10, 15];
@@ -61,6 +61,70 @@ test('runProbeWithRetry returns the final failed outcome when retries are exhaus
   assert.equal(result.timedOut, true);
 });
 
+test('runProbeWithRetry stops immediately for non-retryable failures', async () => {
+  const request = makeRequest();
+  let calls = 0;
+
+  const result = await runProbeWithRetry(request, {
+    runProbe: async () => {
+      calls += 1;
+      return {
+        ...makeFailure(request, 1),
+        failureKind: 'auth',
+        retryable: false,
+      };
+    },
+    maxAttempts: 3,
+    retryBackoffMs: 0,
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.failureKind, 'auth');
+});
+
+test('runRepoProbes synthesizes failed outcomes when preflight is not ready', async () => {
+  const requests = [
+    makeRequest(),
+    {
+      ...makeRequest(),
+      optionId: 'opt_sqlite',
+      probeType: 'risk_scan' as const,
+      outputSchemaName: 'risk-scan' as const,
+    },
+  ];
+  let probeCalls = 0;
+
+  const results = await runRepoProbes(requests, {
+    preflight: async () => ({
+      ok: false,
+      checks: [],
+      failure: {
+        errorMessage: 'Codex login is not ready.',
+        failureKind: 'auth',
+        failurePhase: 'preflight',
+        retryable: false,
+        stderrSummary: 'Not logged in',
+        eventSummary: '',
+      },
+    }),
+    runProbe: async () => {
+      probeCalls += 1;
+      return makeSuccess(requests[0], 1);
+    },
+  });
+
+  assert.equal(probeCalls, 0);
+  assert.equal(results.length, 2);
+  assert.ok(results.every((result) => result.status === 'failed'));
+  const first = results[0];
+  if (first.status !== 'failed') {
+    throw new Error(`Expected failed preflight result, got ${first.status}`);
+  }
+  assert.equal(first.failurePhase, 'preflight');
+  assert.equal(first.failureKind, 'auth');
+});
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -110,6 +174,9 @@ function makeFailure(request: RepoProbeRequest, attempts: number): RepoProbeFail
     status: 'failed',
     attempts,
     errorMessage: 'codex exec timed out after 30000ms',
+    failureKind: 'timeout',
+    failurePhase: 'execution',
+    retryable: true,
     timedOut: true,
     stderrSummary: '',
     eventSummary: 'thread.started',

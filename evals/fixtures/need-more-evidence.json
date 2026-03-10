@@ -1,0 +1,308 @@
+{
+  "name": "need more evidence",
+  "brief": {
+    "id": "fixture_need_more_evidence",
+    "title": "Keep JSON store or move to SQLite?",
+    "question": "Should BenchMemo keep file-backed persistence for the next milestone, or move to SQLite now?",
+    "repo": {
+      "provider": "github",
+      "repoName": "jkordish/benchmemo",
+      "branch": "main",
+      "localPath": "/repo/benchmemo",
+      "paths": ["apps/api", "packages/shared", "workers/codex-runner"]
+    },
+    "options": [
+      {
+        "id": "opt_file",
+        "name": "Keep file-backed persistence",
+        "description": "Retain the current store for the next milestone."
+      },
+      {
+        "id": "opt_sqlite",
+        "name": "Move to SQLite now",
+        "description": "Switch to SQLite immediately."
+      }
+    ],
+    "constraints": ["Require repo evidence before deciding"],
+    "criteria": [
+      { "id": "risk", "name": "Risk", "weight": 55 },
+      { "id": "velocity", "name": "Velocity", "weight": 45 }
+    ],
+    "reversibility": "costly_reversible",
+    "horizon": "weeks",
+    "attachments": []
+  },
+  "frame": {
+    "decisionId": "fixture_need_more_evidence",
+    "normalizedQuestion": "Should BenchMemo keep file-backed persistence for the next milestone, or move to SQLite now?",
+    "options": [
+      {
+        "id": "opt_file",
+        "name": "Keep file-backed persistence",
+        "description": "Retain the current store for the next milestone."
+      },
+      {
+        "id": "opt_sqlite",
+        "name": "Move to SQLite now",
+        "description": "Switch to SQLite immediately."
+      }
+    ],
+    "constraints": ["Require repo evidence before deciding"],
+    "criteria": [
+      {
+        "id": "risk",
+        "name": "Risk",
+        "weight": 55,
+        "scoringGuidance": "Do not make a recommendation without repository evidence."
+      },
+      {
+        "id": "velocity",
+        "name": "Velocity",
+        "weight": 45,
+        "scoringGuidance": "Use milestone scope only when the repo evidence is available."
+      }
+    ],
+    "unknowns": [],
+    "requiredEvidence": ["repo"],
+    "notesForAgents": []
+  },
+  "advocateCases": {
+    "opt_file": {
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_file",
+      "summary": "Keep the store if the repo still supports it safely.",
+      "claims": [
+        {
+          "id": "adv_file_need",
+          "decisionId": "fixture_need_more_evidence",
+          "optionId": "opt_file",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "Keeping the store is probably the lower-effort choice.",
+          "rationale": "That inference depends on repository confirmation.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.7,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    },
+    "opt_sqlite": {
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_sqlite",
+      "summary": "SQLite could still be worth it if the repo reveals pain.",
+      "claims": [
+        {
+          "id": "adv_sqlite_need",
+          "decisionId": "fixture_need_more_evidence",
+          "optionId": "opt_sqlite",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "SQLite might reduce persistence risk.",
+          "rationale": "That only matters if the repo shows current failure modes.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.69,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    }
+  },
+  "skepticCases": {
+    "opt_file": {
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_file",
+      "summary": "The current store may have unverified limits.",
+      "claims": [
+        {
+          "id": "ske_file_need",
+          "decisionId": "fixture_need_more_evidence",
+          "optionId": "opt_file",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "The current store could hide corruption or concurrency problems.",
+          "rationale": "Those risks are repository-specific.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.61,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    },
+    "opt_sqlite": {
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_sqlite",
+      "summary": "SQLite migration cost is also unverified.",
+      "claims": [
+        {
+          "id": "ske_sqlite_need",
+          "decisionId": "fixture_need_more_evidence",
+          "optionId": "opt_sqlite",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "SQLite could add migration and rollback work.",
+          "rationale": "The actual cost depends on repository evidence.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.74,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    }
+  },
+  "repoProbes": [
+    {
+      "taskId": "probe_need_file_impact",
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_file",
+      "probeType": "impact_scan",
+      "status": "failed",
+      "attempts": 1,
+      "errorMessage": "Codex login is not ready.",
+      "failureKind": "auth",
+      "failurePhase": "execution",
+      "retryable": false,
+      "timedOut": false,
+      "stderrSummary": "403 Forbidden",
+      "eventSummary": "",
+      "rawArtifactPath": null
+    },
+    {
+      "taskId": "probe_need_file_risk",
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_file",
+      "probeType": "risk_scan",
+      "status": "failed",
+      "attempts": 1,
+      "errorMessage": "Codex login is not ready.",
+      "failureKind": "auth",
+      "failurePhase": "execution",
+      "retryable": false,
+      "timedOut": false,
+      "stderrSummary": "403 Forbidden",
+      "eventSummary": "",
+      "rawArtifactPath": null
+    },
+    {
+      "taskId": "probe_need_sqlite_impact",
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_sqlite",
+      "probeType": "impact_scan",
+      "status": "failed",
+      "attempts": 1,
+      "errorMessage": "Codex login is not ready.",
+      "failureKind": "auth",
+      "failurePhase": "execution",
+      "retryable": false,
+      "timedOut": false,
+      "stderrSummary": "403 Forbidden",
+      "eventSummary": "",
+      "rawArtifactPath": null
+    },
+    {
+      "taskId": "probe_need_sqlite_risk",
+      "decisionId": "fixture_need_more_evidence",
+      "optionId": "opt_sqlite",
+      "probeType": "risk_scan",
+      "status": "failed",
+      "attempts": 1,
+      "errorMessage": "Codex login is not ready.",
+      "failureKind": "auth",
+      "failurePhase": "execution",
+      "retryable": false,
+      "timedOut": false,
+      "stderrSummary": "403 Forbidden",
+      "eventSummary": "",
+      "rawArtifactPath": null
+    }
+  ],
+  "evidenceBundle": {
+    "decisionId": "fixture_need_more_evidence",
+    "evidenceItems": [],
+    "claimStatuses": [
+      {
+        "claimId": "adv_file_need",
+        "status": "unresolved",
+        "evidenceIds": [],
+        "notes": "Repository evidence is unavailable."
+      },
+      {
+        "claimId": "adv_sqlite_need",
+        "status": "unresolved",
+        "evidenceIds": [],
+        "notes": "Repository evidence is unavailable."
+      },
+      {
+        "claimId": "ske_file_need",
+        "status": "unresolved",
+        "evidenceIds": [],
+        "notes": "Repository evidence is unavailable."
+      },
+      {
+        "claimId": "ske_sqlite_need",
+        "status": "unresolved",
+        "evidenceIds": [],
+        "notes": "Repository evidence is unavailable."
+      }
+    ],
+    "unresolvedQuestions": ["What does the live repository say about persistence layout and migration cost?"]
+  },
+  "judgeDraft": {
+    "decisionId": "fixture_need_more_evidence",
+    "verdict": "approve",
+    "recommendedOptionId": "opt_file",
+    "executiveSummary": "The lower-effort path would usually be to keep the current store, but that recommendation still depends on successful repository evidence.",
+    "optionScores": [
+      {
+        "optionId": "opt_file",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 3,
+            "rationale": "Risk is unknown without repository evidence.",
+            "evidenceIds": []
+          },
+          {
+            "criterionId": "velocity",
+            "score": 4,
+            "rationale": "Keeping the store is probably faster, but that remains provisional.",
+            "evidenceIds": []
+          }
+        ]
+      },
+      {
+        "optionId": "opt_sqlite",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 3,
+            "rationale": "Risk is also unknown without repository evidence.",
+            "evidenceIds": []
+          },
+          {
+            "criterionId": "velocity",
+            "score": 2,
+            "rationale": "A migration is likely slower, but that is still not evidenced.",
+            "evidenceIds": []
+          }
+        ]
+      }
+    ],
+    "keyRisks": ["Both options remain unresolved because repo evidence is missing."],
+    "dissent": [],
+    "evidenceGaps": [],
+    "nextSteps": []
+  },
+  "expected": {
+    "verdict": "need_more_evidence",
+    "recommendedOptionId": null,
+    "requiredEvidenceGaps": ["authentication issue", "missing repo probe coverage"],
+    "requiredNextSteps": ["pnpm doctor", "missing repository evidence"],
+    "requiredSummaryIncludes": ["required repository evidence is incomplete"],
+    "scoreOrder": ["opt_file", "opt_sqlite"]
+  }
+}

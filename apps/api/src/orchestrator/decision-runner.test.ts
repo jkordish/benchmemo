@@ -1,14 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { run } from '@openai/agents';
-import {
-  DecisionBrief,
-  EvidenceBundle,
-  JudgeDraft,
-  RepoProbeFailure,
-  RepoProbeOutcome,
-  RepoProbeResult,
-} from '@benchmemo/shared';
+import { DecisionBrief, EvidenceBundle, JudgeDraft, RepoProbeFailure, RepoProbeResult } from '@benchmemo/shared';
 import { DecisionRunner } from './decision-runner.js';
 
 test('DecisionRunner degrades to need_more_evidence when required repo probes are incomplete', async () => {
@@ -44,7 +37,11 @@ test('DecisionRunner degrades to need_more_evidence when required repo probes ar
   assert.equal(memo.recommendedOptionId, null);
   assert.match(memo.executiveSummary, /required repository evidence is incomplete/i);
   assert.ok(memo.evidenceGaps.some((gap) => /missing repo probe coverage/i.test(gap)));
-  assert.ok(memo.nextSteps.some((step) => /Resolve repo evidence gap:/i.test(step)));
+  assert.ok(
+    memo.nextSteps.some((step) =>
+      /increase `BENCHMEMO_CODEX_PROBE_TIMEOUT_MS`|narrow the repo scope/i.test(step)
+    )
+  );
   assert.deepEqual(events, [
     'received',
     'framed',
@@ -79,6 +76,50 @@ test('DecisionRunner preserves judge verdict when repo evidence is complete', as
   assert.equal(memo.verdict, 'approve');
   assert.equal(memo.recommendedOptionId, brief.options[0].id);
   assert.equal(memo.evidenceGaps.length, 0);
+});
+
+test('DecisionRunner deduplicates repeated platform failures into one shared repo gap', async () => {
+  const brief = makeBrief('dec_runner_auth_gap');
+
+  const runner = new DecisionRunner({
+    runAgent: makeRunAgent({
+      requiredEvidence: ['repo'],
+      judgeVerdict: 'need_more_evidence',
+      judgeRecommendation: null,
+    }),
+    runRepoProbes: async () => [
+      makeFailedProbe(brief.id, brief.options[0].id, 'impact_scan', {
+        failureKind: 'auth',
+        failurePhase: 'execution',
+        retryable: false,
+        errorMessage: 'Codex login is not ready.',
+      }),
+      makeFailedProbe(brief.id, brief.options[0].id, 'risk_scan', {
+        failureKind: 'auth',
+        failurePhase: 'execution',
+        retryable: false,
+        errorMessage: 'Codex login is not ready.',
+      }),
+      makeFailedProbe(brief.id, brief.options[1].id, 'impact_scan', {
+        failureKind: 'auth',
+        failurePhase: 'execution',
+        retryable: false,
+        errorMessage: 'Codex login is not ready.',
+      }),
+      makeFailedProbe(brief.id, brief.options[1].id, 'risk_scan', {
+        failureKind: 'auth',
+        failurePhase: 'execution',
+        retryable: false,
+        errorMessage: 'Codex login is not ready.',
+      }),
+    ],
+  });
+
+  const memo = await runner.run(brief);
+
+  const authGapCount = memo.evidenceGaps.filter((gap) => /authentication issue/i.test(gap)).length;
+  assert.equal(authGapCount, 1);
+  assert.ok(memo.nextSteps.some((step) => /pnpm doctor/i.test(step)));
 });
 
 function makeBrief(id: string): DecisionBrief {
@@ -272,7 +313,8 @@ function makeSucceededProbe(
 function makeFailedProbe(
   decisionId: string,
   optionId: string,
-  probeType: RepoProbeFailure['probeType']
+  probeType: RepoProbeFailure['probeType'],
+  overrides: Partial<RepoProbeFailure> = {}
 ): RepoProbeFailure {
   return {
     taskId: `${optionId}_${probeType}_failed`,
@@ -282,9 +324,13 @@ function makeFailedProbe(
     status: 'failed',
     attempts: 2,
     errorMessage: 'codex exec timed out after 30000ms',
+    failureKind: 'timeout',
+    failurePhase: 'execution',
+    retryable: true,
     timedOut: true,
     stderrSummary: '',
     eventSummary: 'thread.started',
     rawArtifactPath: null,
+    ...overrides,
   };
 }

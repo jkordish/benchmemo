@@ -33,6 +33,27 @@ Install the Codex CLI so `codex` is on your PATH.
 npm install -g @openai/codex
 ```
 
+## Doctor and evals
+BenchMemo now includes lightweight dependency checks plus two eval paths:
+
+```bash
+pnpm run doctor
+pnpm evals
+pnpm evals:live
+```
+
+Notes:
+- `pnpm run doctor` verifies `OPENAI_API_KEY`, the local `codex` binary, and `codex login status`.
+- `pnpm run doctor` is a lightweight readiness check; it does not execute a live `codex exec` probe.
+- `pnpm evals` runs 5 deterministic stage-driven fixtures:
+  - easy winner
+  - stale-doc trap
+  - hidden-coupling trap
+  - need-more-evidence
+  - rollback-risk
+- `pnpm evals:live` runs a real end-to-end smoke against the local API path and reports `PASS`, `FAIL`, or `SKIPPED`.
+- On current `pnpm`, `pnpm doctor` is reserved by pnpm itself, so use `pnpm run doctor` for the BenchMemo doctor command.
+
 ## HTTP API
 Start the API:
 
@@ -55,3 +76,10 @@ curl http://127.0.0.1:3000/decisions/dec_001
 ```
 
 Run data is stored in `.benchmemo-data/` during local development.
+
+## Degraded runs
+BenchMemo keeps decision runs code-orchestrated and tries to finish with a useful memo even when repo probing is unhealthy.
+
+- If repo probing is blocked by auth, CLI, transport, timeout, or invalid-output issues, the run records structured failed probe outcomes instead of crashing the pipeline.
+- When required repo evidence is incomplete, the final memo is forced to `need_more_evidence` with explicit evidence gaps and next steps.
+- Repeated platform failures are collapsed into shared memo guidance instead of repeating the same probe error for every option.

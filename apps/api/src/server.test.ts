@@ -384,8 +384,14 @@ function buildDegradedMemo(brief: DecisionBrief): FinalMemo {
     verdict: 'need_more_evidence',
     recommendedOptionId: null,
     executiveSummary: 'Repository evidence is incomplete, so BenchMemo cannot make a reliable recommendation yet.',
-    evidenceGaps: ['Keep billing in monolith is missing repo probe coverage for impact_scan. impact_scan: codex exec timed out after 30000ms'],
-    nextSteps: ['Retry the missing repo probe and revisit the decision.'],
+    evidenceGaps: [
+      'Codex repo probing encountered a transport issue during execution (1 probes affected). Example: codex exec timed out after 30000ms',
+      'Keep billing in monolith is missing repo probe coverage for impact_scan.',
+    ],
+    nextSteps: [
+      'Run `pnpm doctor`, verify network connectivity to Codex/OpenAI, and retry repo probes.',
+      'Re-run the decision after the missing repository evidence is collected.',
+    ],
   });
 }
 
@@ -460,6 +466,9 @@ class DegradedExecutor implements DecisionExecutor {
         status: 'failed',
         attempts: 2,
         errorMessage: 'codex exec timed out after 30000ms',
+        failureKind: 'transport',
+        failurePhase: 'execution',
+        retryable: true,
         timedOut: true,
         stderrSummary: '',
         eventSummary: 'thread.started',

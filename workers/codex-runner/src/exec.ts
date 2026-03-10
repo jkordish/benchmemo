@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import {
   RepoProbeFailureSchema,
+  RepoProbeFailureKind,
   RepoProbeOutcome,
   RepoProbeRequest,
   RepoProbeRequestSchema,
@@ -87,6 +88,7 @@ export async function runCodexProbe(
           req,
           attempts: 1,
           errorMessage: `codex exec timed out after ${timeoutMs}ms`,
+          failurePhase: 'execution',
           timedOut: true,
           stderrLines,
           events,
@@ -121,7 +123,18 @@ export async function runCodexProbe(
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      reject(error);
+      resolve(
+        buildProbeFailure({
+          taskId,
+          req,
+          attempts: 1,
+          errorMessage: toErrorMessage(error),
+          failurePhase: 'execution',
+          timedOut: false,
+          stderrLines,
+          events,
+        })
+      );
     });
 
     child.on('close', (code) => {
@@ -152,6 +165,7 @@ export async function runCodexProbe(
           req,
           attempts: 1,
           errorMessage: `codex exec exited with code ${code ?? 'unknown'}`,
+          failurePhase: 'execution',
           timedOut: false,
           stderrLines,
           events,
@@ -164,12 +178,32 @@ export async function runCodexProbe(
     return executionOutcome;
   }
 
-  const parsed = JSON.parse(await readFile(outputPath, 'utf8')) as Omit<
+  let parsed: Omit<
     RepoProbeResult,
     'taskId' | 'decisionId' | 'optionId' | 'probeType' | 'rawArtifactPath' | 'status' | 'attempts'
   >;
 
-  const result = RepoProbeResultSchema.parse({
+  try {
+    parsed = JSON.parse(await readFile(outputPath, 'utf8')) as Omit<
+      RepoProbeResult,
+      'taskId' | 'decisionId' | 'optionId' | 'probeType' | 'rawArtifactPath' | 'status' | 'attempts'
+    >;
+  } catch (error) {
+    return buildProbeFailure({
+      taskId,
+      req,
+      attempts: 1,
+      errorMessage: `codex exec produced unreadable output: ${toErrorMessage(error)}`,
+      failureKind: 'invalid_output',
+      failurePhase: 'execution',
+      retryable: false,
+      timedOut: false,
+      stderrLines,
+      events,
+    });
+  }
+
+  const result = RepoProbeResultSchema.safeParse({
     ...parsed,
     taskId,
     decisionId: req.decisionId,
@@ -180,9 +214,24 @@ export async function runCodexProbe(
     rawArtifactPath: outputPath,
   });
 
+  if (!result.success) {
+    return buildProbeFailure({
+      taskId,
+      req,
+      attempts: 1,
+      errorMessage: `codex exec produced invalid structured output: ${result.error.issues[0]?.message ?? 'schema validation failed'}`,
+      failureKind: 'invalid_output',
+      failurePhase: 'execution',
+      retryable: false,
+      timedOut: false,
+      stderrLines,
+      events,
+    });
+  }
+
   // Intentionally keep the JSON artifact on disk for downstream auditability.
   // A later persistence layer can move or clean up these artifacts on its own schedule.
-  return result;
+  return result.data;
 }
 
 export function getCodexProbeTimeoutMs() {
@@ -226,10 +275,26 @@ function buildProbeFailure(input: {
   req: RepoProbeRequest;
   attempts: number;
   errorMessage: string;
+  failureKind?: RepoProbeFailureKind;
+  failurePhase: 'preflight' | 'execution';
+  retryable?: boolean;
   timedOut: boolean;
   stderrLines: string[];
   events: CodexJsonEvent[];
 }) {
+  const classification =
+    input.failureKind && typeof input.retryable === 'boolean'
+      ? {
+          failureKind: input.failureKind,
+          retryable: input.retryable,
+        }
+      : classifyProbeFailure({
+          errorMessage: input.errorMessage,
+          timedOut: input.timedOut,
+          stderrLines: input.stderrLines,
+          events: input.events,
+        });
+
   return RepoProbeFailureSchema.parse({
     taskId: input.taskId,
     decisionId: input.req.decisionId,
@@ -238,11 +303,55 @@ function buildProbeFailure(input: {
     status: 'failed',
     attempts: input.attempts,
     errorMessage: input.errorMessage,
+    failureKind: classification.failureKind,
+    failurePhase: input.failurePhase,
+    retryable: classification.retryable,
     timedOut: input.timedOut,
     stderrSummary: summarizeStderr(input.stderrLines),
     eventSummary: summarizeEvents(input.events),
     rawArtifactPath: null,
   });
+}
+
+function classifyProbeFailure(input: {
+  errorMessage: string;
+  timedOut: boolean;
+  stderrLines: string[];
+  events: CodexJsonEvent[];
+}) {
+  const haystack = [
+    input.errorMessage,
+    ...input.stderrLines,
+    summarizeEvents(input.events),
+  ]
+    .join('\n')
+    .toLowerCase();
+
+  if (/(403|401|forbidden|unauthorized|not logged in|login|api key|authentication)/i.test(haystack)) {
+    return {
+      failureKind: 'auth' as const,
+      retryable: false,
+    };
+  }
+
+  if (/(failed to connect|connection|websocket|econn|socket|network|dns|refused|reset|unreachable)/i.test(haystack)) {
+    return {
+      failureKind: 'transport' as const,
+      retryable: true,
+    };
+  }
+
+  if (input.timedOut) {
+    return {
+      failureKind: 'timeout' as const,
+      retryable: true,
+    };
+  }
+
+  return {
+    failureKind: 'cli' as const,
+    retryable: false,
+  };
 }
 
 function summarizeCodexEvent(event: CodexJsonEvent) {
@@ -278,4 +387,12 @@ function buildCodexEnv() {
   const env = { ...process.env };
   delete env.CODEX_API_KEY;
   return env;
+}
+
+function toErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === 'string' ? error : 'Unknown codex execution error';
 }

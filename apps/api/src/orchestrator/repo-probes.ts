@@ -1,11 +1,12 @@
-import { RepoProbeOutcome, RepoProbeRequest } from '@benchmemo/shared';
-import { runCodexProbe } from '@benchmemo/codex-runner';
+import { RepoProbeFailureSchema, RepoProbeOutcome, RepoProbeRequest } from '@benchmemo/shared';
+import { runCodexPreflight, runCodexProbe, type CodexPreflightResult } from '@benchmemo/codex-runner';
 
 const DEFAULT_MAX_PARALLEL_PROBES = 2;
 const DEFAULT_CODEX_PROBE_MAX_ATTEMPTS = 2;
 const DEFAULT_RETRY_BACKOFF_MS = 1_000;
 
 export interface RunRepoProbesOptions {
+  preflight?: () => Promise<CodexPreflightResult>;
   runProbe?: (request: RepoProbeRequest) => Promise<RepoProbeOutcome>;
   concurrency?: number;
   maxAttempts?: number;
@@ -16,10 +17,34 @@ export async function runRepoProbes(
   requests: RepoProbeRequest[],
   options: RunRepoProbesOptions = {}
 ) {
+  const preflight = options.preflight ?? runCodexPreflight;
   const runProbe = options.runProbe ?? runCodexProbe;
   const concurrency = options.concurrency ?? getMaxParallelProbes();
   const maxAttempts = options.maxAttempts ?? getCodexProbeMaxAttempts();
   const retryBackoffMs = options.retryBackoffMs ?? DEFAULT_RETRY_BACKOFF_MS;
+  const preflightResult = await preflight();
+  const preflightFailure = preflightResult.failure;
+
+  if (!preflightResult.ok && preflightFailure) {
+    return requests.map((request) =>
+      RepoProbeFailureSchema.parse({
+        taskId: buildPreflightTaskId(request),
+        decisionId: request.decisionId,
+        optionId: request.optionId,
+        probeType: request.probeType,
+        status: 'failed',
+        attempts: 1,
+        errorMessage: preflightFailure.errorMessage,
+        failureKind: preflightFailure.failureKind,
+        failurePhase: 'preflight',
+        retryable: preflightFailure.retryable,
+        timedOut: false,
+        stderrSummary: preflightFailure.stderrSummary,
+        eventSummary: preflightFailure.eventSummary,
+        rawArtifactPath: null,
+      })
+    );
+  }
 
   return mapWithConcurrency(requests, concurrency, async (request) =>
     runProbeWithRetry(request, {
@@ -79,6 +104,10 @@ export async function runProbeWithRetry(
       attempts: attempt,
     };
 
+    if (!outcome.retryable) {
+      return latestFailure;
+    }
+
     if (attempt < options.maxAttempts) {
       await sleep(options.retryBackoffMs);
     }
@@ -120,4 +149,8 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function buildPreflightTaskId(request: RepoProbeRequest) {
+  return `preflight_${request.decisionId}_${request.optionId}_${request.probeType}`;
 }

@@ -79,8 +79,33 @@ test('runCodexProbe times out and returns a failed probe outcome', async () => {
   assert.equal(result.status, 'failed');
   assert.equal(result.timedOut, true);
   assert.equal(result.attempts, 1);
+  assert.equal(result.failureKind, 'timeout');
+  assert.equal(result.failurePhase, 'execution');
+  assert.equal(result.retryable, true);
   assert.match(result.errorMessage, /timed out after 20ms/);
   assert.deepEqual(child.killedSignals, ['SIGTERM']);
+});
+
+test('runCodexProbe classifies auth-like timeouts as non-retryable auth failures', async () => {
+  const localPath = await mkdtemp(join(tmpdir(), 'benchmemo-codex-auth-timeout-'));
+
+  const result = await runCodexProbe(makeRequest(localPath), {
+    spawnFn() {
+      const child = new FakeChild();
+
+      queueMicrotask(() => {
+        child.stderr.write('failed to connect to websocket: HTTP error: 403 Forbidden\n');
+      });
+
+      return child.asChildProcess();
+    },
+    timeoutMs: 20,
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(result.failureKind, 'auth');
+  assert.equal(result.failurePhase, 'execution');
+  assert.equal(result.retryable, false);
 });
 
 test('runCodexProbe returns stderr and event summaries on non-zero exit', async () => {
@@ -107,9 +132,39 @@ test('runCodexProbe returns stderr and event summaries on non-zero exit', async 
   assert.equal(result.status, 'failed');
   assert.equal(result.timedOut, false);
   assert.equal(result.attempts, 1);
+  assert.equal(result.failureKind, 'cli');
+  assert.equal(result.retryable, false);
   assert.match(result.errorMessage, /exited with code 2/);
   assert.match(result.stderrSummary, /probe exploded/);
   assert.match(result.eventSummary, /thread\.started/);
+});
+
+test('runCodexProbe returns invalid_output when structured output is unreadable', async () => {
+  const localPath = await mkdtemp(join(tmpdir(), 'benchmemo-codex-invalid-output-'));
+
+  const result = await runCodexProbe(makeRequest(localPath), {
+    spawnFn(_command, args) {
+      const child = new FakeChild();
+      const outputPath = getOutputPath(args);
+
+      queueMicrotask(async () => {
+        await writeFile(outputPath, '{not valid json');
+        child.stdout.end();
+        child.stderr.end();
+        child.exitCode = 0;
+        child.emit('close', 0);
+      });
+
+      return child.asChildProcess();
+    },
+    timeoutMs: 1_000,
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(result.failureKind, 'invalid_output');
+  assert.equal(result.failurePhase, 'execution');
+  assert.equal(result.retryable, false);
+  assert.match(result.errorMessage, /unreadable output/i);
 });
 
 function makeRequest(localPath: string): RepoProbeRequest {

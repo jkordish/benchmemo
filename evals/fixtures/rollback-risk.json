@@ -1,0 +1,337 @@
+{
+  "name": "rollback-risk",
+  "brief": {
+    "id": "fixture_rollback_risk",
+    "title": "Keep JSON store or move to SQLite?",
+    "question": "Should BenchMemo keep file-backed persistence for the next milestone, or move to SQLite now when rollback risk is material?",
+    "repo": {
+      "provider": "github",
+      "repoName": "jkordish/benchmemo",
+      "branch": "main",
+      "localPath": "/repo/benchmemo",
+      "paths": ["apps/api", "packages/shared", "workers/codex-runner"]
+    },
+    "options": [
+      {
+        "id": "opt_file",
+        "name": "Keep file-backed persistence",
+        "description": "Retain the current store until rollback risk is better understood."
+      },
+      {
+        "id": "opt_sqlite",
+        "name": "Move to SQLite now",
+        "description": "Adopt SQLite immediately despite the rollback surface."
+      }
+    ],
+    "constraints": ["Rollback risk is a primary concern"],
+    "criteria": [
+      { "id": "risk", "name": "Risk", "weight": 70 },
+      { "id": "velocity", "name": "Velocity", "weight": 30 }
+    ],
+    "reversibility": "hard_to_reverse",
+    "horizon": "weeks",
+    "attachments": []
+  },
+  "frame": {
+    "decisionId": "fixture_rollback_risk",
+    "normalizedQuestion": "Should BenchMemo keep file-backed persistence for the next milestone, or move to SQLite now when rollback risk is material?",
+    "options": [
+      {
+        "id": "opt_file",
+        "name": "Keep file-backed persistence",
+        "description": "Retain the current store until rollback risk is better understood."
+      },
+      {
+        "id": "opt_sqlite",
+        "name": "Move to SQLite now",
+        "description": "Adopt SQLite immediately despite the rollback surface."
+      }
+    ],
+    "constraints": ["Rollback risk is a primary concern"],
+    "criteria": [
+      {
+        "id": "risk",
+        "name": "Risk",
+        "weight": 70,
+        "scoringGuidance": "Prefer the option with the lower rollback and migration blast radius."
+      },
+      {
+        "id": "velocity",
+        "name": "Velocity",
+        "weight": 30,
+        "scoringGuidance": "Prefer the option that avoids introducing urgent migration work."
+      }
+    ],
+    "unknowns": [],
+    "requiredEvidence": ["repo"],
+    "notesForAgents": []
+  },
+  "advocateCases": {
+    "opt_file": {
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_file",
+      "summary": "Keep the reversible path for now.",
+      "claims": [
+        {
+          "id": "adv_file_rollback",
+          "decisionId": "fixture_rollback_risk",
+          "optionId": "opt_file",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "Keeping the current store minimizes rollback risk this milestone.",
+          "rationale": "The current path avoids format migration and downgrade handling.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.82,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    },
+    "opt_sqlite": {
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_sqlite",
+      "summary": "SQLite could still improve durability later.",
+      "claims": [
+        {
+          "id": "adv_sqlite_rollback",
+          "decisionId": "fixture_rollback_risk",
+          "optionId": "opt_sqlite",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "SQLite could reduce persistence correctness risk over time.",
+          "rationale": "A database-backed store may help once the product matures.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.67,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    }
+  },
+  "skepticCases": {
+    "opt_file": {
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_file",
+      "summary": "Staying put can delay real improvements.",
+      "claims": [
+        {
+          "id": "ske_file_rollback",
+          "decisionId": "fixture_rollback_risk",
+          "optionId": "opt_file",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "Keeping the current store delays richer persistence capabilities.",
+          "rationale": "Eventually the team may need a database-backed store.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.56,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    },
+    "opt_sqlite": {
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_sqlite",
+      "summary": "SQLite expands rollback risk immediately.",
+      "claims": [
+        {
+          "id": "ske_sqlite_rollback",
+          "decisionId": "fixture_rollback_risk",
+          "optionId": "opt_sqlite",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "SQLite introduces rollback-risk because persistence format and downgrade handling would change.",
+          "rationale": "The repo would need migration safety and reverse compatibility work.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.86,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    }
+  },
+  "repoProbes": [
+    {
+      "taskId": "probe_rollback_file_impact",
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_file",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Keeping the current store avoids a format migration and preserves the current downgrade path.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.82,
+      "rawArtifactPath": "/tmp/rollback_file_impact.json"
+    },
+    {
+      "taskId": "probe_rollback_file_risk",
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_file",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "The current path keeps rollback-risk contained for the milestone.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.79,
+      "rawArtifactPath": "/tmp/rollback_file_risk.json"
+    },
+    {
+      "taskId": "probe_rollback_sqlite_impact",
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_sqlite",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "SQLite would require migration tooling, downgrade behavior, and updated tests.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts", "apps/api/src/server.test.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts", "apps/api/src/orchestrator/decision-runner.test.ts"],
+      "migrationHazards": ["Format migration", "Rollback compatibility", "Data downgrade support"],
+      "operationalRisks": [],
+      "estimatedComplexity": "high",
+      "confidence": 0.87,
+      "rawArtifactPath": "/tmp/rollback_sqlite_impact.json"
+    },
+    {
+      "taskId": "probe_rollback_sqlite_risk",
+      "decisionId": "fixture_rollback_risk",
+      "optionId": "opt_sqlite",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Rollback risk is materially higher for SQLite because migration and downgrade behavior would need to be correct immediately.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": ["Rollback compatibility"],
+      "operationalRisks": ["A broken migration could strand existing decision data."],
+      "estimatedComplexity": "high",
+      "confidence": 0.9,
+      "rawArtifactPath": "/tmp/rollback_sqlite_risk.json"
+    }
+  ],
+  "evidenceBundle": {
+    "decisionId": "fixture_rollback_risk",
+    "evidenceItems": [
+      {
+        "id": "ev_rollback_keep",
+        "decisionId": "fixture_rollback_risk",
+        "sourceType": "repo",
+        "title": "Current store preserves the existing rollback path",
+        "locator": "apps/api/src/store/decision-store.ts",
+        "excerpt": "Keeping the current store avoids changing persistence format during a hard-to-reverse window.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["adv_file_rollback"],
+        "contradictsClaimIds": ["ske_file_rollback"]
+      },
+      {
+        "id": "ev_rollback_sqlite",
+        "decisionId": "fixture_rollback_risk",
+        "sourceType": "repo",
+        "title": "SQLite migration expands rollback risk",
+        "locator": "apps/api/src/store/decision-store.ts, apps/api/src/server.test.ts",
+        "excerpt": "A SQLite move would require migration tooling and downgrade handling during a hard-to-reverse period.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["ske_sqlite_rollback"],
+        "contradictsClaimIds": ["adv_sqlite_rollback"]
+      }
+    ],
+    "claimStatuses": [
+      {
+        "claimId": "adv_file_rollback",
+        "status": "verified",
+        "evidenceIds": ["ev_rollback_keep"],
+        "notes": "Keeping the store minimizes rollback-risk this milestone."
+      },
+      {
+        "claimId": "adv_sqlite_rollback",
+        "status": "contradicted",
+        "evidenceIds": ["ev_rollback_sqlite"],
+        "notes": "The rollback surface makes SQLite the riskier short-term move."
+      },
+      {
+        "claimId": "ske_file_rollback",
+        "status": "contradicted",
+        "evidenceIds": ["ev_rollback_keep"],
+        "notes": "The current store is not the immediate rollback threat."
+      },
+      {
+        "claimId": "ske_sqlite_rollback",
+        "status": "verified",
+        "evidenceIds": ["ev_rollback_sqlite"],
+        "notes": "Rollback risk is materially higher for SQLite right now."
+      }
+    ],
+    "unresolvedQuestions": []
+  },
+  "judgeDraft": {
+    "decisionId": "fixture_rollback_risk",
+    "verdict": "approve",
+    "recommendedOptionId": "opt_file",
+    "executiveSummary": "Keep file-backed persistence for the next milestone because rollback risk is materially lower than a SQLite migration in a hard-to-reverse window.",
+    "optionScores": [
+      {
+        "optionId": "opt_file",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 4,
+            "rationale": "Keeping the store preserves the current rollback path.",
+            "evidenceIds": ["ev_rollback_keep"]
+          },
+          {
+            "criterionId": "velocity",
+            "score": 4,
+            "rationale": "It also avoids migration work during the milestone.",
+            "evidenceIds": ["ev_rollback_keep"]
+          }
+        ]
+      },
+      {
+        "optionId": "opt_sqlite",
+        "criterionScores": [
+          {
+            "criterionId": "risk",
+            "score": 2,
+            "rationale": "Rollback-risk is materially higher because migration and downgrade behavior would need to be correct immediately.",
+            "evidenceIds": ["ev_rollback_sqlite"]
+          },
+          {
+            "criterionId": "velocity",
+            "score": 2,
+            "rationale": "SQLite would add migration work during a short horizon.",
+            "evidenceIds": ["ev_rollback_sqlite"]
+          }
+        ]
+      }
+    ],
+    "keyRisks": ["SQLite would make rollback behavior a first-class delivery risk right away."],
+    "dissent": ["If rollback constraints ease later, SQLite could become more attractive."],
+    "evidenceGaps": [],
+    "nextSteps": ["Document rollback expectations before reconsidering a persistence migration."]
+  },
+  "expected": {
+    "verdict": "approve",
+    "recommendedOptionId": "opt_file",
+    "requiredEvidenceGaps": [],
+    "requiredNextSteps": ["Document rollback expectations"],
+    "requiredSummaryIncludes": ["rollback risk"],
+    "scoreOrder": ["opt_file", "opt_sqlite"]
+  }
+}

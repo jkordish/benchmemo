@@ -14,6 +14,7 @@ import {
   JudgeDraftSchema,
   OptionCaseDraftSchema,
   RepoProbeCoverage,
+  RepoProbeFailure,
   RepoProbeRequest,
   RepoProbeOutcome,
   RiskCaseDraftSchema,
@@ -44,6 +45,11 @@ export interface DecisionRunnerOptions {
   artifactStore?: ArtifactStore;
   runAgent?: typeof run;
   runRepoProbes?: (requests: RepoProbeRequest[]) => Promise<RepoProbeOutcome[]>;
+}
+
+interface RepoEvidenceGapReport {
+  evidenceGaps: string[];
+  nextSteps: string[];
 }
 
 export class DecisionRunner {
@@ -143,7 +149,8 @@ export class DecisionRunner {
 
     const repoProbes = await this.runRepoProbes(repoProbeRequests);
     const repoProbeCoverage = this.buildRepoProbeCoverage(frame, repoProbeRequests, repoProbes);
-    const repoEvidenceGaps = this.buildRepoEvidenceGaps(frame, repoProbeCoverage, repoProbes);
+    const repoEvidenceGapReport = this.buildRepoEvidenceGapReport(frame, repoProbeCoverage, repoProbes);
+    const repoEvidenceGaps = repoEvidenceGapReport.evidenceGaps;
 
     await this.persist('repo_probed', repoProbes, 'Codex repo probes completed');
 
@@ -184,7 +191,7 @@ export class DecisionRunner {
     const judgeDraft = JudgeDraftSchema.parse(judgeResult.finalOutput);
     await this.persist('judged', judgeDraft, 'Judge produced decision draft');
 
-    const finalMemo = this.materializeFinalMemo(frame, judgeDraft, repoProbeCoverage, repoEvidenceGaps);
+    const finalMemo = this.materializeFinalMemo(frame, judgeDraft, repoProbeCoverage, repoEvidenceGapReport);
     await this.persist('completed', finalMemo, 'Decision run completed');
 
     return finalMemo;
@@ -194,7 +201,7 @@ export class DecisionRunner {
     frame: DecisionFrame,
     draft: JudgeDraft,
     repoProbeCoverage: RepoProbeCoverage[],
-    repoEvidenceGaps: string[]
+    repoEvidenceGapReport: RepoEvidenceGapReport
   ): FinalMemo {
     const criteriaById = new Map(frame.criteria.map((criterion) => [criterion.id, criterion]));
 
@@ -224,7 +231,7 @@ export class DecisionRunner {
     const needsRepoEvidence = frame.requiredEvidence.includes('repo');
     const evidenceGaps = dedupeStrings([
       ...baseMemo.evidenceGaps,
-      ...repoEvidenceGaps,
+      ...repoEvidenceGapReport.evidenceGaps,
     ]);
 
     if (!needsRepoEvidence || !hasIncompleteRepoCoverage) {
@@ -245,7 +252,7 @@ export class DecisionRunner {
       evidenceGaps,
       nextSteps: dedupeStrings([
         ...baseMemo.nextSteps,
-        ...repoEvidenceGaps.map((gap) => `Resolve repo evidence gap: ${gap}`),
+        ...repoEvidenceGapReport.nextSteps,
       ]),
     });
   }
@@ -287,35 +294,119 @@ export class DecisionRunner {
     });
   }
 
-  private buildRepoEvidenceGaps(
+  private buildRepoEvidenceGapReport(
     frame: DecisionFrame,
     coverage: RepoProbeCoverage[],
     outcomes: RepoProbeOutcome[]
-  ) {
+  ): RepoEvidenceGapReport {
     const optionNames = new Map(frame.options.map((option) => [option.id, option.name]));
+    const failedOutcomes = outcomes.filter(
+      (outcome): outcome is Extract<RepoProbeOutcome, { status: 'failed' }> => outcome.status === 'failed'
+    );
+    const platformFailureGroups = this.groupFailedProbeOutcomes(failedOutcomes);
 
-    return coverage.flatMap((entry) => {
+    const coverageGaps = coverage.flatMap((entry) => {
       if (entry.status === 'complete') {
         return [];
       }
 
-      const failedOutcomes = outcomes.filter(
-        (
-          outcome
-        ): outcome is Extract<RepoProbeOutcome, { status: 'failed' }> =>
-          outcome.optionId === entry.optionId && outcome.status === 'failed'
-      );
-      const failureSummary =
-        failedOutcomes.length > 0
-          ? failedOutcomes
-              .map((outcome) => `${outcome.probeType}: ${outcome.errorMessage}`)
-              .join('; ')
-          : 'repo probes did not return enough evidence';
-
       return [
-        `${optionNames.get(entry.optionId) ?? entry.optionId} is missing repo probe coverage for ${entry.missingProbeTypes.join(', ')}. ${failureSummary}`,
+        `${optionNames.get(entry.optionId) ?? entry.optionId} is missing repo probe coverage for ${entry.missingProbeTypes.join(', ')}.`,
       ];
     });
+
+    const platformGaps = platformFailureGroups.map((group) => {
+      const affectedProbeCount = group.outcomes.length;
+      const phaseLabel = group.failurePhase === 'preflight' ? 'during preflight' : 'during execution';
+
+      switch (group.failureKind) {
+        case 'auth':
+          return `Codex repo probing was blocked by an authentication issue ${phaseLabel} (${affectedProbeCount} probes affected). Example: ${group.exampleError}`;
+        case 'transport':
+          return `Codex repo probing encountered a transport issue ${phaseLabel} (${affectedProbeCount} probes affected). Example: ${group.exampleError}`;
+        case 'timeout':
+          return `Codex repo probing timed out ${phaseLabel} (${affectedProbeCount} probes affected). Example: ${group.exampleError}`;
+        case 'cli':
+          return `Codex repo probing could not start because the CLI is unavailable or unhealthy ${phaseLabel} (${affectedProbeCount} probes affected). Example: ${group.exampleError}`;
+        case 'invalid_output':
+          return `Codex repo probing returned invalid structured output ${phaseLabel} (${affectedProbeCount} probes affected). Example: ${group.exampleError}`;
+      }
+    });
+
+    const nextSteps = dedupeStrings([
+      ...platformFailureGroups.flatMap((group) => this.buildNextStepsForFailure(group.failureKind)),
+      ...(coverageGaps.length > 0
+        ? ['Re-run the decision after the missing repository evidence is collected.']
+        : []),
+    ]);
+
+    return {
+      evidenceGaps: dedupeStrings([
+        ...platformGaps,
+        ...coverageGaps,
+      ]),
+      nextSteps,
+    };
+  }
+
+  private groupFailedProbeOutcomes(failedOutcomes: RepoProbeFailure[]) {
+    const groups = new Map<
+      string,
+      {
+        failureKind: RepoProbeFailure['failureKind'];
+        failurePhase: RepoProbeFailure['failurePhase'];
+        exampleError: string;
+        outcomes: RepoProbeFailure[];
+      }
+    >();
+
+    for (const outcome of failedOutcomes) {
+      const key = [
+        outcome.failurePhase,
+        outcome.failureKind,
+        normalizeWhitespace(outcome.errorMessage),
+      ].join('|');
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.outcomes.push(outcome);
+        continue;
+      }
+
+      groups.set(key, {
+        failureKind: outcome.failureKind,
+        failurePhase: outcome.failurePhase,
+        exampleError: outcome.errorMessage,
+        outcomes: [outcome],
+      });
+    }
+
+    return Array.from(groups.values());
+  }
+
+  private buildNextStepsForFailure(failureKind: RepoProbeFailure['failureKind']) {
+    switch (failureKind) {
+      case 'auth':
+        return [
+          'Run `pnpm doctor` and refresh Codex login or OpenAI credentials before retrying repo probes.',
+        ];
+      case 'transport':
+        return [
+          'Run `pnpm doctor`, verify network connectivity to Codex/OpenAI, and retry repo probes.',
+        ];
+      case 'timeout':
+        return [
+          'Narrow the repo scope or increase `BENCHMEMO_CODEX_PROBE_TIMEOUT_MS` before retrying repo probes.',
+        ];
+      case 'cli':
+        return [
+          'Install the Codex CLI and confirm `codex login status` works before retrying repo probes.',
+        ];
+      case 'invalid_output':
+        return [
+          'Inspect the stored repo probe diagnostics and adjust the Codex prompt or schema before retrying repo probes.',
+        ];
+    }
   }
 
   private assertEvidenceGate(
@@ -354,4 +445,8 @@ function uniqStrings<T extends string>(items: T[]) {
 
 function dedupeStrings(items: string[]) {
   return Array.from(new Set(items));
+}
+
+function normalizeWhitespace(value: string) {
+  return value.trim().replace(/\s+/g, ' ');
 }

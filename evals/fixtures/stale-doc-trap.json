@@ -1,0 +1,337 @@
+{
+  "name": "stale-doc trap",
+  "brief": {
+    "id": "fixture_stale_docs",
+    "title": "Follow the old SQLite note or keep the current store?",
+    "question": "Should BenchMemo follow an older migration note that recommends SQLite immediately, or keep the current store for this milestone?",
+    "repo": {
+      "provider": "github",
+      "repoName": "jkordish/benchmemo",
+      "branch": "main",
+      "localPath": "/repo/benchmemo",
+      "paths": ["apps/api", "packages/shared"]
+    },
+    "options": [
+      {
+        "id": "opt_keep",
+        "name": "Keep the current store",
+        "description": "Retain the current JSON-backed store for this milestone."
+      },
+      {
+        "id": "opt_follow_doc",
+        "name": "Follow the old SQLite note",
+        "description": "Adopt SQLite now because an attached note recommended it earlier."
+      }
+    ],
+    "constraints": ["Prefer current repo evidence over stale process notes"],
+    "criteria": [
+      { "id": "correctness", "name": "Correctness", "weight": 50 },
+      { "id": "delivery", "name": "Delivery", "weight": 50 }
+    ],
+    "reversibility": "costly_reversible",
+    "horizon": "weeks",
+    "attachments": []
+  },
+  "frame": {
+    "decisionId": "fixture_stale_docs",
+    "normalizedQuestion": "Should BenchMemo follow an older migration note that recommends SQLite immediately, or keep the current store for this milestone?",
+    "options": [
+      {
+        "id": "opt_keep",
+        "name": "Keep the current store",
+        "description": "Retain the current JSON-backed store for this milestone."
+      },
+      {
+        "id": "opt_follow_doc",
+        "name": "Follow the old SQLite note",
+        "description": "Adopt SQLite now because an attached note recommended it earlier."
+      }
+    ],
+    "constraints": ["Prefer current repo evidence over stale process notes"],
+    "criteria": [
+      {
+        "id": "correctness",
+        "name": "Correctness",
+        "weight": 50,
+        "scoringGuidance": "Prefer evidence from the current repository over historical notes."
+      },
+      {
+        "id": "delivery",
+        "name": "Delivery",
+        "weight": 50,
+        "scoringGuidance": "Prefer the option that keeps the milestone on track."
+      }
+    ],
+    "unknowns": [],
+    "requiredEvidence": ["repo", "docs"],
+    "notesForAgents": []
+  },
+  "advocateCases": {
+    "opt_keep": {
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_keep",
+      "summary": "Stay with the repo-backed status quo.",
+      "claims": [
+        {
+          "id": "adv_keep_stale",
+          "decisionId": "fixture_stale_docs",
+          "optionId": "opt_keep",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "Current repo evidence favors keeping the store for this milestone.",
+          "rationale": "The code already centers persistence and there is no live repo proof that SQLite is urgent.",
+          "requiresEvidence": ["repo"],
+          "severity": "medium",
+          "confidence": 0.78,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    },
+    "opt_follow_doc": {
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_follow_doc",
+      "summary": "Follow the migration note quickly.",
+      "claims": [
+        {
+          "id": "adv_doc_stale",
+          "decisionId": "fixture_stale_docs",
+          "optionId": "opt_follow_doc",
+          "sourceAgent": "advocate",
+          "stance": "pro",
+          "text": "The older note says BenchMemo should move to SQLite now.",
+          "rationale": "Past documentation can capture concerns that are easy to forget.",
+          "requiresEvidence": ["docs", "repo"],
+          "severity": "medium",
+          "confidence": 0.66,
+          "status": "unverified"
+        }
+      ],
+      "assumptions": []
+    }
+  },
+  "skepticCases": {
+    "opt_keep": {
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_keep",
+      "summary": "Keeping the store can preserve stale assumptions too.",
+      "claims": [
+        {
+          "id": "ske_keep_stale",
+          "decisionId": "fixture_stale_docs",
+          "optionId": "opt_keep",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "Keeping the store could ignore a real persistence problem.",
+          "rationale": "Historical notes may have been written for a reason.",
+          "requiresEvidence": ["docs", "repo"],
+          "severity": "medium",
+          "confidence": 0.55,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    },
+    "opt_follow_doc": {
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_follow_doc",
+      "summary": "Older notes can drift away from the repo.",
+      "claims": [
+        {
+          "id": "ske_doc_stale",
+          "decisionId": "fixture_stale_docs",
+          "optionId": "opt_follow_doc",
+          "sourceAgent": "skeptic",
+          "stance": "con",
+          "text": "The attached migration note may be stale and should not override current repo evidence.",
+          "rationale": "Documentation ages faster than code.",
+          "requiresEvidence": ["docs", "repo"],
+          "severity": "medium",
+          "confidence": 0.82,
+          "status": "unverified"
+        }
+      ],
+      "unknowns": []
+    }
+  },
+  "repoProbes": [
+    {
+      "taskId": "probe_stale_keep_impact",
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_keep",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "The current store is still concentrated in one place with no active SQLite support in the repo.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.83,
+      "rawArtifactPath": "/tmp/stale_keep_impact.json"
+    },
+    {
+      "taskId": "probe_stale_keep_risk",
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_keep",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Keeping the store preserves the tested path for this milestone.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": [],
+      "operationalRisks": [],
+      "estimatedComplexity": "low",
+      "confidence": 0.8,
+      "rawArtifactPath": "/tmp/stale_keep_risk.json"
+    },
+    {
+      "taskId": "probe_stale_doc_impact",
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_follow_doc",
+      "probeType": "impact_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "Following the old note would require adding SQLite support that is not present in the current repo.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts", "apps/api/src/server.test.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": ["Existing JSON data would require a migration path."],
+      "operationalRisks": [],
+      "estimatedComplexity": "medium",
+      "confidence": 0.78,
+      "rawArtifactPath": "/tmp/stale_doc_impact.json"
+    },
+    {
+      "taskId": "probe_stale_doc_risk",
+      "decisionId": "fixture_stale_docs",
+      "optionId": "opt_follow_doc",
+      "probeType": "risk_scan",
+      "status": "succeeded",
+      "attempts": 1,
+      "summary": "The repo evidence does not show an urgent correctness need that matches the old note.",
+      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
+      "hiddenDependencies": [],
+      "likelyTestSurface": ["apps/api/src/server.test.ts"],
+      "migrationHazards": ["Rollback handling would need new work."],
+      "operationalRisks": [],
+      "estimatedComplexity": "medium",
+      "confidence": 0.77,
+      "rawArtifactPath": "/tmp/stale_doc_risk.json"
+    }
+  ],
+  "evidenceBundle": {
+    "decisionId": "fixture_stale_docs",
+    "evidenceItems": [
+      {
+        "id": "ev_stale_repo",
+        "decisionId": "fixture_stale_docs",
+        "sourceType": "repo",
+        "title": "Current repository does not contain SQLite support",
+        "locator": "apps/api/src/store/decision-store.ts",
+        "excerpt": "The live repo still uses the current JSON-backed store and keeps persistence concentrated in one module.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "primary",
+        "supportsClaimIds": ["adv_keep_stale", "ske_doc_stale"],
+        "contradictsClaimIds": ["adv_doc_stale"]
+      },
+      {
+        "id": "ev_stale_note",
+        "decisionId": "fixture_stale_docs",
+        "sourceType": "docs",
+        "title": "Older migration note recommends SQLite",
+        "locator": "docs/migration-note.md",
+        "excerpt": "A historical note suggested moving to SQLite before more product work.",
+        "retrievedAt": "2026-03-10T00:00:00.000Z",
+        "quality": "secondary",
+        "supportsClaimIds": ["adv_doc_stale", "ske_keep_stale"],
+        "contradictsClaimIds": []
+      }
+    ],
+    "claimStatuses": [
+      {
+        "claimId": "adv_keep_stale",
+        "status": "verified",
+        "evidenceIds": ["ev_stale_repo"],
+        "notes": "Current repo evidence supports the keep option."
+      },
+      {
+        "claimId": "adv_doc_stale",
+        "status": "contradicted",
+        "evidenceIds": ["ev_stale_repo"],
+        "notes": "The old note is stale relative to the current code."
+      },
+      {
+        "claimId": "ske_keep_stale",
+        "status": "unresolved",
+        "evidenceIds": ["ev_stale_note"],
+        "notes": "The historical note alone is too weak to outweigh current repo evidence."
+      },
+      {
+        "claimId": "ske_doc_stale",
+        "status": "verified",
+        "evidenceIds": ["ev_stale_repo"],
+        "notes": "The repository contradicts the old recommendation."
+      }
+    ],
+    "unresolvedQuestions": []
+  },
+  "judgeDraft": {
+    "decisionId": "fixture_stale_docs",
+    "verdict": "approve",
+    "recommendedOptionId": "opt_keep",
+    "executiveSummary": "Keep the current store for this milestone because the repository evidence is current and the older SQLite note appears stale.",
+    "optionScores": [
+      {
+        "optionId": "opt_keep",
+        "criterionScores": [
+          {
+            "criterionId": "correctness",
+            "score": 4,
+            "rationale": "Current repo evidence is more trustworthy than the historical note.",
+            "evidenceIds": ["ev_stale_repo"]
+          },
+          {
+            "criterionId": "delivery",
+            "score": 4,
+            "rationale": "Keeping the store preserves milestone focus.",
+            "evidenceIds": ["ev_stale_repo"]
+          }
+        ]
+      },
+      {
+        "optionId": "opt_follow_doc",
+        "criterionScores": [
+          {
+            "criterionId": "correctness",
+            "score": 2,
+            "rationale": "The note is stale relative to the current repository.",
+            "evidenceIds": ["ev_stale_note", "ev_stale_repo"]
+          },
+          {
+            "criterionId": "delivery",
+            "score": 2,
+            "rationale": "Following the note would add migration work now.",
+            "evidenceIds": ["ev_stale_repo"]
+          }
+        ]
+      }
+    ],
+    "keyRisks": ["Historical documentation can drift away from the live codebase."],
+    "dissent": ["If the note were refreshed with current repo evidence, SQLite could still become the right next move."],
+    "evidenceGaps": ["The attached SQLite migration note appears stale relative to the current repository."],
+    "nextSteps": ["Update the migration note so future decisions do not inherit stale guidance."]
+  },
+  "expected": {
+    "verdict": "approve",
+    "recommendedOptionId": "opt_keep",
+    "requiredEvidenceGaps": ["stale relative to the current repository"],
+    "requiredNextSteps": ["Update the migration note"],
+    "requiredSummaryIncludes": ["stale"],
+    "scoreOrder": ["opt_keep", "opt_follow_doc"]
+  }
+}
