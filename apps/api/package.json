@@ -7,7 +7,7 @@
   "types": "src/index.ts",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "test": "tsx --test src/server.test.ts",
+    "test": "tsx --test src/*.test.ts src/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

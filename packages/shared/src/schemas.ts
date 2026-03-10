@@ -104,16 +104,19 @@ export const EvidenceItemSchema = z.object({
   contradictsClaimIds: z.array(z.string()).default([]),
 });
 
+export const RepoProbeTypeSchema = z.enum(['impact_scan', 'risk_scan', 'migration_scan']);
+export const RepoProbeOutputSchemaNameSchema = z.enum(['impact-scan', 'risk-scan']);
+
 export const RepoProbeRequestSchema = z.object({
   decisionId: z.string().min(1),
   optionId: z.string().min(1),
-  probeType: z.enum(['impact_scan', 'risk_scan', 'migration_scan']),
+  probeType: RepoProbeTypeSchema,
   repoName: z.string().min(1),
   localPath: z.string().optional(),
   branch: z.string().optional(),
   paths: z.array(z.string()).default([]),
   question: z.string().min(1),
-  outputSchemaName: z.enum(['impact-scan', 'risk-scan']),
+  outputSchemaName: RepoProbeOutputSchemaNameSchema,
   sandbox: z.enum(['read-only', 'workspace-write', 'danger-full-access']).default('read-only'),
 });
 
@@ -121,7 +124,9 @@ export const RepoProbeResultSchema = z.object({
   taskId: z.string().min(1),
   decisionId: z.string().min(1),
   optionId: z.string().min(1),
-  probeType: z.enum(['impact_scan', 'risk_scan', 'migration_scan']),
+  probeType: RepoProbeTypeSchema,
+  status: z.literal('succeeded'),
+  attempts: z.number().int().min(1),
   summary: z.string().min(1),
   touchedAreas: z.array(z.string()).default([]),
   hiddenDependencies: z.array(z.string()).default([]),
@@ -131,6 +136,33 @@ export const RepoProbeResultSchema = z.object({
   estimatedComplexity: z.enum(['low', 'medium', 'high']),
   confidence: z.number().min(0).max(1),
   rawArtifactPath: z.string().min(1),
+});
+
+export const RepoProbeFailureSchema = z.object({
+  taskId: z.string().min(1),
+  decisionId: z.string().min(1),
+  optionId: z.string().min(1),
+  probeType: RepoProbeTypeSchema,
+  status: z.literal('failed'),
+  attempts: z.number().int().min(1),
+  errorMessage: z.string().min(1),
+  timedOut: z.boolean(),
+  stderrSummary: z.string().default(''),
+  eventSummary: z.string().default(''),
+  rawArtifactPath: z.null(),
+});
+
+export const RepoProbeOutcomeSchema = z.discriminatedUnion('status', [
+  RepoProbeResultSchema,
+  RepoProbeFailureSchema,
+]);
+
+export const RepoProbeCoverageSchema = z.object({
+  decisionId: z.string().min(1),
+  optionId: z.string().min(1),
+  status: z.enum(['complete', 'partial', 'missing']),
+  succeededProbeTypes: z.array(RepoProbeTypeSchema).default([]),
+  missingProbeTypes: z.array(RepoProbeTypeSchema).default([]),
 });
 
 export const EvidenceBundleSchema = z.object({
@@ -251,6 +283,9 @@ export type EvidenceItem = z.infer<typeof EvidenceItemSchema>;
 export type EvidenceBundle = z.infer<typeof EvidenceBundleSchema>;
 export type RepoProbeRequest = z.infer<typeof RepoProbeRequestSchema>;
 export type RepoProbeResult = z.infer<typeof RepoProbeResultSchema>;
+export type RepoProbeFailure = z.infer<typeof RepoProbeFailureSchema>;
+export type RepoProbeOutcome = z.infer<typeof RepoProbeOutcomeSchema>;
+export type RepoProbeCoverage = z.infer<typeof RepoProbeCoverageSchema>;
 export type JudgeDraft = z.infer<typeof JudgeDraftSchema>;
 export type FinalMemo = z.infer<typeof FinalMemoSchema>;
 export type DecisionRunStep = z.infer<typeof DecisionRunStepSchema>;

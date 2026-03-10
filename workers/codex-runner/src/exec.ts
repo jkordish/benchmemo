@@ -1,10 +1,12 @@
 import { mkdtemp, readFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import {
+  RepoProbeFailureSchema,
+  RepoProbeOutcome,
   RepoProbeRequest,
   RepoProbeRequestSchema,
   RepoProbeResult,
@@ -13,16 +15,32 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = join(__dirname, '..', 'schemas');
+const DEFAULT_CODEX_PROBE_TIMEOUT_MS = 30_000;
 
 export type CodexJsonEvent = Record<string, unknown>;
+export type SpawnFn = (
+  command: string,
+  args: string[],
+  options: Parameters<typeof spawn>[2]
+) => ChildProcessWithoutNullStreams;
 
-export async function runCodexProbe(input: RepoProbeRequest): Promise<RepoProbeResult> {
+export interface RunCodexProbeOptions {
+  spawnFn?: SpawnFn;
+  timeoutMs?: number;
+}
+
+export async function runCodexProbe(
+  input: RepoProbeRequest,
+  options: RunCodexProbeOptions = {}
+): Promise<RepoProbeOutcome> {
   const req = RepoProbeRequestSchema.parse(input);
   const taskId = `codex_${randomUUID()}`;
   const scratch = await mkdtemp(join(tmpdir(), 'benchmemo-codex-'));
   const outputPath = join(scratch, `${taskId}.json`);
   const schemaPath = join(SCHEMA_DIR, `${req.outputSchemaName}.schema.json`);
   const cwd = req.localPath ?? process.cwd();
+  const spawnFn = options.spawnFn ?? spawn;
+  const timeoutMs = options.timeoutMs ?? getCodexProbeTimeoutMs();
 
   const prompt = buildPrompt(req);
   const args = [
@@ -38,15 +56,43 @@ export async function runCodexProbe(input: RepoProbeRequest): Promise<RepoProbeR
   const events: CodexJsonEvent[] = [];
   const stderrLines: string[] = [];
 
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn('codex', args, {
+  const executionOutcome = await new Promise<'success' | RepoProbeOutcome>((resolve, reject) => {
+    const child = spawnFn('codex', args, {
       cwd,
-      env: process.env,
+      env: buildCodexEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    let settled = false;
+
+    if (!child.stdout || !child.stderr) {
+      settled = true;
+      reject(new Error('codex exec did not provide stdout/stderr pipes'));
+      return;
+    }
 
     let stdoutBuffer = '';
     let stderrBuffer = '';
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        if (child.exitCode === null) {
+          child.kill('SIGKILL');
+        }
+      }, 5_000).unref();
+      resolve(
+        buildProbeFailure({
+          taskId,
+          req,
+          attempts: 1,
+          errorMessage: `codex exec timed out after ${timeoutMs}ms`,
+          timedOut: true,
+          stderrLines,
+          events,
+        })
+      );
+    }, timeoutMs);
 
     child.stdout.on('data', (chunk) => {
       stdoutBuffer += String(chunk);
@@ -71,8 +117,18 @@ export async function runCodexProbe(input: RepoProbeRequest): Promise<RepoProbeR
       stderrLines.push(...lines.filter(Boolean));
     });
 
-    child.on('error', reject);
+    child.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+
     child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+
       if (stdoutBuffer.trim()) {
         try {
           events.push(JSON.parse(stdoutBuffer.trim()));
@@ -86,21 +142,31 @@ export async function runCodexProbe(input: RepoProbeRequest): Promise<RepoProbeR
       }
 
       if (code === 0) {
-        resolve();
+        resolve('success');
         return;
       }
 
-      reject(
-        new Error(
-          `codex exec failed with exit code ${code}. stderr: ${stderrLines.join('\n')}`
-        )
+      resolve(
+        buildProbeFailure({
+          taskId,
+          req,
+          attempts: 1,
+          errorMessage: `codex exec exited with code ${code ?? 'unknown'}`,
+          timedOut: false,
+          stderrLines,
+          events,
+        })
       );
     });
   });
 
+  if (executionOutcome !== 'success') {
+    return executionOutcome;
+  }
+
   const parsed = JSON.parse(await readFile(outputPath, 'utf8')) as Omit<
     RepoProbeResult,
-    'taskId' | 'decisionId' | 'optionId' | 'probeType' | 'rawArtifactPath'
+    'taskId' | 'decisionId' | 'optionId' | 'probeType' | 'rawArtifactPath' | 'status' | 'attempts'
   >;
 
   const result = RepoProbeResultSchema.parse({
@@ -109,12 +175,28 @@ export async function runCodexProbe(input: RepoProbeRequest): Promise<RepoProbeR
     decisionId: req.decisionId,
     optionId: req.optionId,
     probeType: req.probeType,
+    status: 'succeeded',
+    attempts: 1,
     rawArtifactPath: outputPath,
   });
 
   // Intentionally keep the JSON artifact on disk for downstream auditability.
   // A later persistence layer can move or clean up these artifacts on its own schedule.
   return result;
+}
+
+export function getCodexProbeTimeoutMs() {
+  const raw = process.env.BENCHMEMO_CODEX_PROBE_TIMEOUT_MS;
+  if (!raw) {
+    return DEFAULT_CODEX_PROBE_TIMEOUT_MS;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 1_000) {
+    return DEFAULT_CODEX_PROBE_TIMEOUT_MS;
+  }
+
+  return Math.floor(value);
 }
 
 function buildPrompt(req: RepoProbeRequest): string {
@@ -130,8 +212,70 @@ function buildPrompt(req: RepoProbeRequest): string {
     `Question: ${req.question}`,
     'Rules:',
     '- Do not modify files.',
+    '- Keep the investigation narrow and stop once the requested schema can be filled with concrete evidence.',
+    '- Prefer rg plus targeted file reads over broad repository scans.',
     '- Prefer code, config, tests, docs, and infra artifacts over speculation.',
     '- Cite file paths, symbols, test names, commands, or config blocks whenever possible.',
+    '- If evidence is missing, say so briefly instead of continuing to search.',
     '- Return only the JSON schema requested by the harness.',
   ].join('\n');
+}
+
+function buildProbeFailure(input: {
+  taskId: string;
+  req: RepoProbeRequest;
+  attempts: number;
+  errorMessage: string;
+  timedOut: boolean;
+  stderrLines: string[];
+  events: CodexJsonEvent[];
+}) {
+  return RepoProbeFailureSchema.parse({
+    taskId: input.taskId,
+    decisionId: input.req.decisionId,
+    optionId: input.req.optionId,
+    probeType: input.req.probeType,
+    status: 'failed',
+    attempts: input.attempts,
+    errorMessage: input.errorMessage,
+    timedOut: input.timedOut,
+    stderrSummary: summarizeStderr(input.stderrLines),
+    eventSummary: summarizeEvents(input.events),
+    rawArtifactPath: null,
+  });
+}
+
+function summarizeCodexEvent(event: CodexJsonEvent) {
+  const type = typeof event.type === 'string' ? event.type : 'unknown';
+  const item = event.item;
+  if (item && typeof item === 'object') {
+    const record = item as Record<string, unknown>;
+    const itemType = typeof record.type === 'string' ? record.type : 'unknown_item';
+    const status = typeof record.status === 'string' ? `:${record.status}` : '';
+    const command =
+      typeof record.command === 'string'
+        ? `:${record.command.slice(0, 80)}`
+        : '';
+    return `${type}:${itemType}${status}${command}`;
+  }
+
+  const message = typeof event.message === 'string' ? `:${event.message.slice(0, 120)}` : '';
+  return `${type}${message}`;
+}
+
+function summarizeEvents(events: CodexJsonEvent[]) {
+  return events
+    .slice(-3)
+    .map((event) => summarizeCodexEvent(event))
+    .join(' | ');
+}
+
+function summarizeStderr(stderrLines: string[]) {
+  return stderrLines.slice(-10).join('\n');
+}
+
+function buildCodexEnv() {
+  const env = { ...process.env };
+  delete env.CODEX_API_KEY;
+  return env;
 }

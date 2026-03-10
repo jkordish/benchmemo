@@ -10,6 +10,7 @@ import {
   DecisionRunRecordSchema,
   FinalMemo,
   FinalMemoSchema,
+  RepoProbeFailureSchema,
   RepoProbeResultSchema,
 } from '@benchmemo/shared';
 import { DecisionExecutor } from './decision-executor.js';
@@ -160,6 +161,34 @@ test('GET /decisions/:id returns completed records with durable artifacts and fi
   assert.deepEqual(durableRawArtifact, {
     summary: 'repo probe raw artifact',
   });
+});
+
+test('GET /decisions/:id returns completed degraded records with evidence gaps', async (t) => {
+  const harness = await startHarness(t, new DegradedExecutor());
+  const brief = makeBrief('dec_degraded');
+
+  const response = await postDecision(harness.baseUrl, brief);
+  assert.equal(response.status, 202);
+
+  const record = await waitForDecision(
+    harness.baseUrl,
+    brief.id,
+    (candidate) => candidate.status === 'completed'
+  );
+
+  assert.equal(record.status, 'completed');
+  assert.equal(record.error, null);
+  assert.equal(record.finalMemo?.verdict, 'need_more_evidence');
+  assert.equal(record.finalMemo?.recommendedOptionId, null);
+  assert.ok(record.finalMemo?.evidenceGaps.some((gap) => /repo probe coverage/i.test(gap)));
+
+  const repoProbedRef = record.artifactRefs.find((artifact) => artifact.step === 'repo_probed');
+  assert.ok(repoProbedRef);
+
+  const repoProbes = JSON.parse(await readFile(repoProbedRef.path, 'utf8')) as unknown;
+  const failedProbe = RepoProbeFailureSchema.array().parse(repoProbes);
+  assert.equal(failedProbe.length, 1);
+  assert.equal(failedProbe[0].timedOut, true);
 });
 
 test('GET /decisions/:id returns failed records with partial history intact', async (t) => {
@@ -349,6 +378,17 @@ function buildFinalMemo(brief: DecisionBrief): FinalMemo {
   });
 }
 
+function buildDegradedMemo(brief: DecisionBrief): FinalMemo {
+  return FinalMemoSchema.parse({
+    ...buildFinalMemo(brief),
+    verdict: 'need_more_evidence',
+    recommendedOptionId: null,
+    executiveSummary: 'Repository evidence is incomplete, so BenchMemo cannot make a reliable recommendation yet.',
+    evidenceGaps: ['Keep billing in monolith is missing repo probe coverage for impact_scan. impact_scan: codex exec timed out after 30000ms'],
+    nextSteps: ['Retry the missing repo probe and revisit the decision.'],
+  });
+}
+
 class SuccessfulExecutor implements DecisionExecutor {
   constructor(
     private readonly rawArtifactPath: string,
@@ -373,6 +413,8 @@ class SuccessfulExecutor implements DecisionExecutor {
         decisionId: brief.id,
         optionId: brief.options[0].id,
         probeType: 'impact_scan',
+        status: 'succeeded',
+        attempts: 1,
         summary: 'Billing touches shared deploy infrastructure.',
         touchedAreas: ['services/billing'],
         hiddenDependencies: ['deploy pipeline'],
@@ -391,6 +433,42 @@ class SuccessfulExecutor implements DecisionExecutor {
     }
 
     const finalMemo = buildFinalMemo(brief);
+    await options.artifactStore?.save('completed', finalMemo);
+    await options.onEvent?.({ step: 'completed', message: 'Decision run completed' });
+    return finalMemo;
+  }
+}
+
+class DegradedExecutor implements DecisionExecutor {
+  async run(
+    brief: DecisionBrief,
+    options: Parameters<DecisionExecutor['run']>[1]
+  ): Promise<FinalMemo> {
+    await options.onEvent?.({ step: 'received', message: 'Decision brief accepted' });
+    await options.artifactStore?.save('framed', {
+      decisionId: brief.id,
+      normalizedQuestion: brief.question,
+    });
+    await options.onEvent?.({ step: 'framed', message: 'Decision framed' });
+
+    await options.artifactStore?.save('repo_probed', [
+      RepoProbeFailureSchema.parse({
+        taskId: `probe_fail_${brief.id}`,
+        decisionId: brief.id,
+        optionId: brief.options[0].id,
+        probeType: 'impact_scan',
+        status: 'failed',
+        attempts: 2,
+        errorMessage: 'codex exec timed out after 30000ms',
+        timedOut: true,
+        stderrSummary: '',
+        eventSummary: 'thread.started',
+        rawArtifactPath: null,
+      }),
+    ]);
+    await options.onEvent?.({ step: 'repo_probed', message: 'Codex repo probes completed' });
+
+    const finalMemo = buildDegradedMemo(brief);
     await options.artifactStore?.save('completed', finalMemo);
     await options.onEvent?.({ step: 'completed', message: 'Decision run completed' });
     return finalMemo;

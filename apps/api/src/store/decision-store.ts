@@ -11,7 +11,7 @@ import {
   DecisionRunRecordSchema,
   DecisionRunStep,
   FinalMemo,
-  RepoProbeResultSchema,
+  RepoProbeOutcomeSchema,
 } from '@benchmemo/shared';
 import { z } from 'zod';
 import type { ArtifactStore } from '../orchestrator/decision-runner.js';
@@ -200,7 +200,7 @@ export class FileDecisionStore implements DecisionStore {
   }
 
   private async normalizeArtifact(id: string, artifact: unknown): Promise<unknown> {
-    const repoProbes = z.array(RepoProbeResultSchema).safeParse(artifact);
+    const repoProbes = z.array(RepoProbeOutcomeSchema).safeParse(artifact);
     if (!repoProbes.success) {
       return artifact;
     }
@@ -210,6 +210,10 @@ export class FileDecisionStore implements DecisionStore {
 
     return Promise.all(
       repoProbes.data.map(async (probe) => {
+        if (probe.status !== 'succeeded') {
+          return probe;
+        }
+
         const durableRawPath = join(rawArtifactDir, `${probe.taskId}.json`);
         await copyFile(probe.rawArtifactPath, durableRawPath);
 

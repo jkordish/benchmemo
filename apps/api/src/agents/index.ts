@@ -66,6 +66,8 @@ export function buildEvidenceAgent(vectorStoreIds: string[]) {
 Rules:
 - Every claim must end verified, contradicted, or unresolved.
 - Repo probe findings count as repo evidence when included by the caller.
+- Failed or timed-out repo probes mean repo evidence is incomplete; do not treat them as contradictory evidence.
+- Leave claims unresolved when they depend on missing repo evidence and no other primary source closes the gap.
 - Use web search for time-sensitive or vendor facts.
 - Use file search when attached docs are available.
 - Never invent evidence IDs.
@@ -83,6 +85,7 @@ export function buildJudgeAgent() {
 Rules:
 - No unsupported decisive statements.
 - If evidence is insufficient, return need_more_evidence.
+- Treat incomplete repo probe coverage as an evidence gap, not as affirmative evidence for any option.
 - Score every option against every criterion on a 1-5 scale.
 - Include dissent and evidence gaps.
 Return only the schema.`,
