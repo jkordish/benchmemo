@@ -33,5 +33,25 @@ Install the Codex CLI so `codex` is on your PATH.
 npm install -g @openai/codex
 ```
 
-## First run
-`apps/api/src/index.ts` contains a tiny example decision payload.
+## HTTP API
+Start the API:
+
+```bash
+pnpm dev:api
+```
+
+Create a decision run:
+
+```bash
+curl -X POST http://127.0.0.1:3000/decisions \
+  -H 'content-type: application/json' \
+  -d @decision-brief.json
+```
+
+Fetch run status and final memo:
+
+```bash
+curl http://127.0.0.1:3000/decisions/dec_001
+```
+
+Run data is stored in `.benchmemo-data/` during local development.

@@ -186,6 +186,62 @@ export const FinalMemoSchema = z.object({
   nextSteps: z.array(z.string()).default([]),
 });
 
+export const DecisionRunStepSchema = z.enum([
+  'received',
+  'framed',
+  'cases_built',
+  'repo_probed',
+  'evidence_verified',
+  'judged',
+  'completed',
+]);
+
+export const DecisionRunEventSchema = z.object({
+  step: DecisionRunStepSchema,
+  message: z.string().min(1),
+  at: z.string().datetime(),
+});
+
+export const DecisionArtifactRefSchema = z.object({
+  step: DecisionRunStepSchema,
+  path: z.string().min(1),
+  createdAt: z.string().datetime(),
+});
+
+export const DecisionRunStatusSchema = z.enum([
+  'queued',
+  'running',
+  'completed',
+  'failed',
+]);
+
+export const DecisionRunRecordSchema = z.object({
+  id: z.string().min(1),
+  status: DecisionRunStatusSchema,
+  brief: DecisionBriefSchema,
+  events: z.array(DecisionRunEventSchema).default([]),
+  artifactRefs: z.array(DecisionArtifactRefSchema).default([]),
+  finalMemo: FinalMemoSchema.nullable(),
+  error: z.object({
+    message: z.string().min(1),
+  }).nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  startedAt: z.string().datetime().nullable(),
+  completedAt: z.string().datetime().nullable(),
+  failedAt: z.string().datetime().nullable(),
+});
+
+export const CreateDecisionAcceptedSchema = z.object({
+  id: z.string().min(1),
+  status: DecisionRunStatusSchema,
+  location: z.string().min(1),
+});
+
+export const ApiErrorSchema = z.object({
+  error: z.string().min(1),
+});
+
 export type DecisionBrief = z.infer<typeof DecisionBriefSchema>;
 export type DecisionFrame = z.infer<typeof DecisionFrameSchema>;
 export type Claim = z.infer<typeof ClaimSchema>;
@@ -197,3 +253,10 @@ export type RepoProbeRequest = z.infer<typeof RepoProbeRequestSchema>;
 export type RepoProbeResult = z.infer<typeof RepoProbeResultSchema>;
 export type JudgeDraft = z.infer<typeof JudgeDraftSchema>;
 export type FinalMemo = z.infer<typeof FinalMemoSchema>;
+export type DecisionRunStep = z.infer<typeof DecisionRunStepSchema>;
+export type DecisionRunEvent = z.infer<typeof DecisionRunEventSchema>;
+export type DecisionArtifactRef = z.infer<typeof DecisionArtifactRefSchema>;
+export type DecisionRunStatus = z.infer<typeof DecisionRunStatusSchema>;
+export type DecisionRunRecord = z.infer<typeof DecisionRunRecordSchema>;
+export type CreateDecisionAccepted = z.infer<typeof CreateDecisionAcceptedSchema>;
+export type ApiError = z.infer<typeof ApiErrorSchema>;

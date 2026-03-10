@@ -1,5 +1,4 @@
 import { Agent, fileSearchTool, webSearchTool } from '@openai/agents';
-import { z } from 'zod';
 import {
   DecisionFrameSchema,
   EvidenceBundleSchema,
@@ -14,7 +13,7 @@ export type DebateContext = {
 };
 
 export function buildFrameAgent() {
-  return new Agent<DebateContext, z.infer<typeof DecisionFrameSchema>>({
+  return new Agent<DebateContext, typeof DecisionFrameSchema>({
     name: 'Frame Agent',
     model: 'gpt-5.4',
     outputType: DecisionFrameSchema,
@@ -27,7 +26,7 @@ Criteria weights are provided by the caller; preserve them.`,
 }
 
 export function buildAdvocateAgent() {
-  return new Agent<DebateContext, z.infer<typeof OptionCaseDraftSchema>>({
+  return new Agent<DebateContext, typeof OptionCaseDraftSchema>({
     name: 'Advocate Agent',
     model: 'gpt-5.4',
     outputType: OptionCaseDraftSchema,
@@ -40,7 +39,7 @@ Set claim.status to unverified.`,
 }
 
 export function buildSkepticAgent() {
-  return new Agent<DebateContext, z.infer<typeof RiskCaseDraftSchema>>({
+  return new Agent<DebateContext, typeof RiskCaseDraftSchema>({
     name: 'Skeptic Agent',
     model: 'gpt-5.4',
     outputType: RiskCaseDraftSchema,
@@ -58,7 +57,7 @@ export function buildEvidenceAgent(vectorStoreIds: string[]) {
     tools.push(fileSearchTool(vectorStoreIds, { maxNumResults: 12 }));
   }
 
-  return new Agent<DebateContext, z.infer<typeof EvidenceBundleSchema>>({
+  return new Agent<DebateContext, typeof EvidenceBundleSchema>({
     name: 'Evidence Agent',
     model: 'gpt-5.4',
     outputType: EvidenceBundleSchema,
@@ -76,7 +75,7 @@ Return only the schema.`,
 }
 
 export function buildJudgeAgent() {
-  return new Agent<DebateContext, z.infer<typeof JudgeDraftSchema>>({
+  return new Agent<DebateContext, typeof JudgeDraftSchema>({
     name: 'Judge Agent',
     model: 'gpt-5.4',
     outputType: JudgeDraftSchema,

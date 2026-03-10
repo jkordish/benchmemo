@@ -4,13 +4,17 @@ import {
   DecisionBrief,
   DecisionBriefSchema,
   DecisionFrame,
+  DecisionFrameSchema,
+  DecisionRunEvent,
+  DecisionRunStep,
+  EvidenceBundleSchema,
   FinalMemo,
   FinalMemoSchema,
   JudgeDraft,
-  OptionCaseDraft,
+  JudgeDraftSchema,
+  OptionCaseDraftSchema,
   RepoProbeRequest,
-  RepoProbeResult,
-  RiskCaseDraft,
+  RiskCaseDraftSchema,
 } from '@benchmemo/shared';
 import {
   buildAdvocateAgent,
@@ -20,21 +24,6 @@ import {
   buildSkepticAgent,
 } from '../agents/index.js';
 import { runCodexProbe } from '@benchmemo/codex-runner';
-
-export type DecisionRunStep =
-  | 'received'
-  | 'framed'
-  | 'cases_built'
-  | 'repo_probed'
-  | 'evidence_verified'
-  | 'judged'
-  | 'completed';
-
-export type DecisionRunEvent = {
-  step: DecisionRunStep;
-  message: string;
-  data?: unknown;
-};
 
 export interface ArtifactStore {
   save(step: DecisionRunStep, artifact: unknown): Promise<void>;
@@ -46,8 +35,10 @@ export class NullArtifactStore implements ArtifactStore {
   }
 }
 
+export type DecisionRunnerEvent = Pick<DecisionRunEvent, 'step' | 'message'>;
+
 export interface DecisionRunnerOptions {
-  onEvent?: (event: DecisionRunEvent) => Promise<void> | void;
+  onEvent?: (event: DecisionRunnerEvent) => Promise<void> | void;
   artifactStore?: ArtifactStore;
 }
 
@@ -62,7 +53,7 @@ export class DecisionRunner {
 
   async run(input: DecisionBrief): Promise<FinalMemo> {
     const brief = DecisionBriefSchema.parse(input);
-    await this.emit('received', 'Decision brief accepted', brief);
+    await this.emit('received', 'Decision brief accepted');
 
     const vectorStoreIds = brief.attachments.map((item) => item.vectorStoreId);
     const context = {
@@ -82,7 +73,7 @@ export class DecisionRunner {
     });
 
     const frameResult = await run(frameAgent, frameInput, { context });
-    const frame = frameResult.finalOutput as DecisionFrame;
+    const frame = DecisionFrameSchema.parse(frameResult.finalOutput);
     await this.persist('framed', frame, 'Decision framed');
 
     const optionWork = await Promise.all(
@@ -106,8 +97,8 @@ export class DecisionRunner {
 
         return {
           optionId: option.id,
-          advocate: advocateResult.finalOutput as OptionCaseDraft,
-          skeptic: skepticResult.finalOutput as RiskCaseDraft,
+          advocate: OptionCaseDraftSchema.parse(advocateResult.finalOutput),
+          skeptic: RiskCaseDraftSchema.parse(skepticResult.finalOutput),
         };
       })
     );
@@ -161,7 +152,7 @@ export class DecisionRunner {
     });
 
     const evidenceResult = await run(evidenceAgent, evidenceInput, { context });
-    const evidenceBundle = evidenceResult.finalOutput;
+    const evidenceBundle = EvidenceBundleSchema.parse(evidenceResult.finalOutput);
     await this.persist('evidence_verified', evidenceBundle, 'Evidence verification completed');
 
     this.assertEvidenceGate(claims, evidenceBundle.claimStatuses);
@@ -176,7 +167,7 @@ export class DecisionRunner {
     });
 
     const judgeResult = await run(judgeAgent, judgeInput, { context });
-    const judgeDraft = judgeResult.finalOutput as JudgeDraft;
+    const judgeDraft = JudgeDraftSchema.parse(judgeResult.finalOutput);
     await this.persist('judged', judgeDraft, 'Judge produced decision draft');
 
     const finalMemo = this.materializeFinalMemo(frame, judgeDraft);
@@ -233,10 +224,10 @@ export class DecisionRunner {
 
   private async persist(step: DecisionRunStep, artifact: unknown, message: string) {
     await this.artifactStore.save(step, artifact);
-    await this.emit(step, message, artifact);
+    await this.emit(step, message);
   }
 
-  private async emit(step: DecisionRunStep, message: string, data?: unknown) {
-    await this.onEvent?.({ step, message, data });
+  private async emit(step: DecisionRunStep, message: string) {
+    await this.onEvent?.({ step, message });
   }
 }

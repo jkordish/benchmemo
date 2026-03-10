@@ -1,55 +1,23 @@
-import { DecisionRunner } from './orchestrator/decision-runner.js';
-import { DecisionBrief } from '@benchmemo/shared';
+import { createBenchMemoServer } from './server.js';
 
-const sample: DecisionBrief = {
-  id: 'dec_001',
-  title: 'Split billing out of the monolith?',
-  question:
-    'Should we keep billing inside the monolith or extract it into its own service this quarter?',
-  repo: {
-    provider: 'github',
-    repoName: 'acme/platform',
-    localPath: process.cwd(),
-    branch: 'main',
-    paths: ['services/billing', 'infra', 'tests'],
-  },
-  options: [
-    {
-      id: 'opt_keep',
-      name: 'Keep billing in monolith',
-      description: 'Improve module boundaries and observability without a service split.',
-    },
-    {
-      id: 'opt_split',
-      name: 'Extract billing service',
-      description: 'Create an independent billing service with separate deploy and ownership boundaries.',
-    },
-  ],
-  constraints: ['No customer-visible billing outage', 'Support rollback within one deploy window'],
-  criteria: [
-    { id: 'risk', name: 'Delivery risk', weight: 30 },
-    { id: 'ops', name: 'Operational burden', weight: 25 },
-    { id: 'velocity', name: 'Team velocity', weight: 25 },
-    { id: 'reversibility', name: 'Reversibility', weight: 20 },
-  ],
-  reversibility: 'costly_reversible',
-  horizon: 'quarters',
-  attachments: [],
-};
+const port = parsePort(process.env.PORT);
+const host = process.env.HOST ?? '127.0.0.1';
 
-async function main() {
-  const runner = new DecisionRunner({
-    onEvent(event) {
-      console.log(`\n[${event.step}] ${event.message}`);
-    },
-  });
+const { server } = createBenchMemoServer();
 
-  const memo = await runner.run(sample);
-  console.log('\nFINAL MEMO\n');
-  console.dir(memo, { depth: null });
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
+server.listen(port, host, () => {
+  console.log(`BenchMemo API listening on http://${host}:${port}`);
 });
+
+function parsePort(value: string | undefined) {
+  if (!value) {
+    return 3000;
+  }
+
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error(`Invalid PORT value: ${value}`);
+  }
+
+  return port;
+}
