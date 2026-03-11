@@ -6,6 +6,11 @@ export const CriterionSchema = z.object({
   weight: z.number().int().min(0).max(100),
 });
 
+export const DecisionAttachmentSchema = z.object({
+  fileId: z.string().min(1),
+  vectorStoreId: z.string().min(1),
+});
+
 export const DecisionBriefSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -32,12 +37,44 @@ export const DecisionBriefSchema = z.object({
     }),
   reversibility: z.enum(['reversible', 'costly_reversible', 'hard_to_reverse']),
   horizon: z.enum(['days', 'weeks', 'months', 'quarters']),
-  attachments: z.array(
-    z.object({
-      fileId: z.string().min(1),
-      vectorStoreId: z.string().min(1),
-    })
-  ).default([]),
+  attachments: z.array(DecisionAttachmentSchema).default([]),
+});
+
+export const EvidenceSourceKindSchema = z.enum([
+  'repo_doc',
+  'github_issue',
+  'github_pull_request',
+  'github_release',
+]);
+
+export const EvidencePreparedSourceSchema = z.object({
+  id: z.string().min(1),
+  kind: EvidenceSourceKindSchema,
+  title: z.string().min(1),
+  locator: z.string().min(1),
+  score: z.number().min(0),
+  retrievedAt: z.string().datetime(),
+  attachmentFileId: z.string().min(1).nullable().default(null),
+});
+
+export const EvidencePreparedSkippedSourceSchema = EvidencePreparedSourceSchema.extend({
+  reason: z.string().min(1),
+});
+
+export const EvidencePreparationWarningSchema = z.object({
+  code: z.string().min(1),
+  message: z.string().min(1),
+});
+
+export const EvidencePreparationManifestSchema = z.object({
+  decisionId: z.string().min(1),
+  repoDocumentsDiscovered: z.number().int().min(0).default(0),
+  githubArtifactsDiscovered: z.number().int().min(0).default(0),
+  selectedSources: z.array(EvidencePreparedSourceSchema).default([]),
+  skippedSources: z.array(EvidencePreparedSkippedSourceSchema).default([]),
+  warnings: z.array(EvidencePreparationWarningSchema).default([]),
+  attachments: z.array(DecisionAttachmentSchema).default([]),
+  vectorStoreId: z.string().min(1).nullable().default(null),
 });
 
 export const DecisionFrameSchema = z.object({
@@ -231,6 +268,7 @@ export const FinalMemoSchema = z.object({
 
 export const DecisionRunStepSchema = z.enum([
   'received',
+  'evidence_prepared',
   'framed',
   'cases_built',
   'repo_probed',
@@ -286,10 +324,16 @@ export const ApiErrorSchema = z.object({
 });
 
 export type DecisionBrief = z.infer<typeof DecisionBriefSchema>;
+export type DecisionAttachment = z.infer<typeof DecisionAttachmentSchema>;
 export type DecisionFrame = z.infer<typeof DecisionFrameSchema>;
 export type Claim = z.infer<typeof ClaimSchema>;
 export type OptionCaseDraft = z.infer<typeof OptionCaseDraftSchema>;
 export type RiskCaseDraft = z.infer<typeof RiskCaseDraftSchema>;
+export type EvidenceSourceKind = z.infer<typeof EvidenceSourceKindSchema>;
+export type EvidencePreparedSource = z.infer<typeof EvidencePreparedSourceSchema>;
+export type EvidencePreparedSkippedSource = z.infer<typeof EvidencePreparedSkippedSourceSchema>;
+export type EvidencePreparationWarning = z.infer<typeof EvidencePreparationWarningSchema>;
+export type EvidencePreparationManifest = z.infer<typeof EvidencePreparationManifestSchema>;
 export type EvidenceItem = z.infer<typeof EvidenceItemSchema>;
 export type EvidenceBundle = z.infer<typeof EvidenceBundleSchema>;
 export type RepoProbeRequest = z.infer<typeof RepoProbeRequestSchema>;

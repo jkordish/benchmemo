@@ -1,5 +1,10 @@
 import { spawn } from 'node:child_process';
 import { RepoProbeFailureKind } from '@benchmemo/shared';
+import {
+  CodexProbeEnvironmentError,
+  type PreparedCodexProbeEnvironment,
+  prepareCodexProbeEnvironment,
+} from './probe-environment.js';
 
 const DEFAULT_PREFLIGHT_TIMEOUT_MS = 5_000;
 
@@ -47,6 +52,9 @@ export interface RunCodexPreflightOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  probeEnvironmentFactory?: (
+    sourceEnv?: NodeJS.ProcessEnv
+  ) => Promise<PreparedCodexProbeEnvironment>;
 }
 
 export async function runCodexPreflight(
@@ -55,6 +63,7 @@ export async function runCodexPreflight(
   const env = options.env ?? process.env;
   const commandRunner = options.commandRunner ?? runCommand;
   const timeoutMs = options.timeoutMs ?? DEFAULT_PREFLIGHT_TIMEOUT_MS;
+  const probeEnvironmentFactory = options.probeEnvironmentFactory ?? prepareCodexProbeEnvironment;
   const checks: CodexPreflightCheck[] = [];
 
   const openAiApiKey = env.OPENAI_API_KEY?.trim();
@@ -106,32 +115,49 @@ export async function runCodexPreflight(
     detail: binaryResult.stdout.trim() || 'codex --version completed successfully.',
   });
 
-  const loginResult = await commandRunner('codex', ['login', 'status'], {
-    cwd: options.cwd,
-    env,
-    timeoutMs,
-  });
-  const loginOutput = [loginResult.stdout.trim(), loginResult.stderr.trim()].filter(Boolean).join('\n');
-  const loginReady =
-    commandSucceeded(loginResult) &&
-    /^logged in\b/i.test(loginOutput) &&
-    !/not logged in/i.test(loginOutput);
+  let loginFailureKind: RepoProbeFailureKind | null = null;
+  let loginDetail = '';
+  let loginOk = false;
+  let probeEnvironment: PreparedCodexProbeEnvironment | null = null;
 
-  if (loginReady) {
-    checks.push({
-      id: 'codex_login',
-      ok: true,
-      summary: 'Codex login status is ready.',
-      detail: loginOutput,
-    });
-  } else {
-    checks.push({
-      id: 'codex_login',
-      ok: false,
-      summary: 'Codex login status is not ready.',
-      detail: loginOutput || formatCommandDetail(loginResult),
-    });
+  try {
+    probeEnvironment = await probeEnvironmentFactory(env);
+  } catch (error) {
+    loginFailureKind =
+      error instanceof CodexProbeEnvironmentError ? error.failureKind : 'auth';
+    loginDetail = toErrorMessage(error);
   }
+
+  if (probeEnvironment) {
+    try {
+      const loginResult = await commandRunner('codex', ['login', 'status'], {
+        cwd: options.cwd,
+        env: probeEnvironment.env,
+        timeoutMs,
+      });
+      const loginOutput = [loginResult.stdout.trim(), loginResult.stderr.trim()]
+        .filter(Boolean)
+        .join('\n');
+      loginOk =
+        commandSucceeded(loginResult) &&
+        /^logged in\b/i.test(loginOutput) &&
+        !/not logged in/i.test(loginOutput);
+      loginDetail = loginOutput || formatCommandDetail(loginResult);
+    } finally {
+      await probeEnvironment.cleanup();
+    }
+
+    if (!loginOk) {
+      loginFailureKind = 'auth';
+    }
+  }
+
+  checks.push({
+    id: 'codex_login',
+    ok: loginOk,
+    summary: loginOk ? 'Codex login status is ready.' : 'Codex login status is not ready.',
+    detail: loginDetail,
+  });
 
   const failedCheck = checks.find((check) => !check.ok);
   if (!failedCheck) {
@@ -145,7 +171,7 @@ export async function runCodexPreflight(
   if (failedCheck.id === 'codex_login') {
     return buildFailureResult(checks, {
       errorMessage: 'Codex login is not ready.',
-      failureKind: 'auth',
+      failureKind: loginFailureKind ?? 'auth',
       failurePhase: 'preflight',
       retryable: false,
       stderrSummary: failedCheck.detail,
@@ -268,4 +294,12 @@ function formatCommandDetail(result: CommandResult) {
   ]
     .filter((value): value is string => Boolean(value))
     .join('\n');
+}
+
+function toErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === 'string' ? error : 'Unknown Codex preflight error';
 }

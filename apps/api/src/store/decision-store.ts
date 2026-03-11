@@ -21,6 +21,7 @@ export type DecisionEventInput = Pick<DecisionRunEvent, 'step' | 'message'>;
 export interface DecisionStore {
   create(brief: DecisionBrief): Promise<DecisionRunRecord>;
   get(id: string): Promise<DecisionRunRecord | null>;
+  replaceBrief(id: string, brief: DecisionBrief): Promise<DecisionRunRecord>;
   markRunning(id: string): Promise<DecisionRunRecord>;
   appendEvent(id: string, event: DecisionEventInput): Promise<DecisionRunRecord>;
   saveArtifact(id: string, step: DecisionRunStep, artifact: unknown): Promise<DecisionArtifactRef>;
@@ -85,6 +86,14 @@ export class FileDecisionStore implements DecisionStore {
 
       throw error;
     }
+  }
+
+  async replaceBrief(id: string, brief: DecisionBrief): Promise<DecisionRunRecord> {
+    return this.updateRecord(id, (record) => ({
+      ...record,
+      brief,
+      updatedAt: nowIso(),
+    }));
   }
 
   async markRunning(id: string): Promise<DecisionRunRecord> {

@@ -69,7 +69,7 @@ export class DecisionRunner {
     const brief = DecisionBriefSchema.parse(input);
     await this.emit('received', 'Decision brief accepted');
 
-    const vectorStoreIds = brief.attachments.map((item) => item.vectorStoreId);
+    const vectorStoreIds = uniqStrings(brief.attachments.map((item) => item.vectorStoreId));
     const context = {
       vectorStoreIds,
       domainLabel: 'engineering-decisions',

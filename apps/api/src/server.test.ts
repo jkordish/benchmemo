@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import test, { TestContext } from 'node:test';
 import {
   DecisionBrief,
+  EvidencePreparationManifestSchema,
   DecisionRunRecord,
   DecisionRunRecordSchema,
   FinalMemo,
@@ -15,6 +16,7 @@ import {
 } from '@benchmemo/shared';
 import { DecisionExecutor } from './decision-executor.js';
 import { DecisionService } from './decision-service.js';
+import { EvidencePreparer, PreparedDecisionEvidence } from './evidence-preparer.js';
 import { createBenchMemoServer } from './server.js';
 import { FileDecisionStore } from './store/decision-store.js';
 
@@ -136,12 +138,22 @@ test('GET /decisions/:id returns completed records with durable artifacts and fi
   assert.equal(record.error, null);
   assert.deepEqual(
     record.events.map((event) => event.step),
-    ['received', 'framed', 'repo_probed', 'completed']
+    ['received', 'evidence_prepared', 'framed', 'repo_probed', 'completed']
   );
   assert.deepEqual(
     record.artifactRefs.map((artifact) => artifact.step),
-    ['framed', 'repo_probed', 'completed']
+    ['evidence_prepared', 'framed', 'repo_probed', 'completed']
   );
+  assert.equal(record.brief.attachments.length, 1);
+
+  const evidencePreparedRef = record.artifactRefs.find(
+    (artifact) => artifact.step === 'evidence_prepared'
+  );
+  assert.ok(evidencePreparedRef);
+  const evidenceManifest = EvidencePreparationManifestSchema.parse(
+    JSON.parse(await readFile(evidencePreparedRef.path, 'utf8')) as unknown
+  );
+  assert.equal(evidenceManifest.selectedSources.length, 2);
 
   const repoProbedRef = record.artifactRefs.find((artifact) => artifact.step === 'repo_probed');
   assert.ok(repoProbedRef);
@@ -209,18 +221,22 @@ test('GET /decisions/:id returns failed records with partial history intact', as
   assert.equal(record.error?.message, 'Synthetic executor failure');
   assert.deepEqual(
     record.events.map((event) => event.step),
-    ['received', 'framed']
+    ['received', 'evidence_prepared', 'framed']
   );
   assert.deepEqual(
     record.artifactRefs.map((artifact) => artifact.step),
-    ['framed']
+    ['evidence_prepared', 'framed']
   );
 });
 
 async function startHarness(t: TestContext, executor: DecisionExecutor) {
   const rootDir = await mkdtemp(join(tmpdir(), 'benchmemo-api-'));
   const store = new FileDecisionStore(rootDir);
-  const service = new DecisionService({ store, executor });
+  const service = new DecisionService({
+    store,
+    executor,
+    evidencePreparer: new StubEvidencePreparer(),
+  });
   const { server } = createBenchMemoServer({ service });
 
   await new Promise<void>((resolve, reject) => {
@@ -496,6 +512,56 @@ class FailingExecutor implements DecisionExecutor {
     });
     await options.onEvent?.({ step: 'framed', message: 'Decision framed' });
     throw new Error('Synthetic executor failure');
+  }
+}
+
+class StubEvidencePreparer implements EvidencePreparer {
+  async prepare(brief: DecisionBrief): Promise<PreparedDecisionEvidence> {
+    return {
+      brief: {
+        ...brief,
+        attachments: [
+          {
+            fileId: 'file_docs_billing',
+            vectorStoreId: 'vs_docs_billing',
+          },
+        ],
+      },
+      manifest: EvidencePreparationManifestSchema.parse({
+        decisionId: brief.id,
+        repoDocumentsDiscovered: 1,
+        githubArtifactsDiscovered: 1,
+        selectedSources: [
+          {
+            id: 'repo_doc:README.md',
+            kind: 'repo_doc',
+            title: 'README',
+            locator: 'README.md',
+            score: 95,
+            retrievedAt: '2026-03-11T00:00:00.000Z',
+            attachmentFileId: 'file_docs_billing',
+          },
+          {
+            id: 'github_issue:7',
+            kind: 'github_issue',
+            title: 'Issue #7: Billing migration sequencing',
+            locator: 'https://github.com/acme/platform/issues/7',
+            score: 14,
+            retrievedAt: '2026-03-11T00:00:00.000Z',
+            attachmentFileId: null,
+          },
+        ],
+        skippedSources: [],
+        warnings: [],
+        attachments: [
+          {
+            fileId: 'file_docs_billing',
+            vectorStoreId: 'vs_docs_billing',
+          },
+        ],
+        vectorStoreId: 'vs_docs_billing',
+      }),
+    };
   }
 }
 
