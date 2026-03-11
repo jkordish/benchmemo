@@ -104,8 +104,8 @@ export const EvidenceItemSchema = z.object({
   contradictsClaimIds: z.array(z.string()).default([]),
 });
 
-export const RepoProbeTypeSchema = z.enum(['impact_scan', 'risk_scan', 'migration_scan']);
-export const RepoProbeOutputSchemaNameSchema = z.enum(['impact-scan', 'risk-scan']);
+export const RepoProbeTypeSchema = z.enum(['repo_scan']);
+export const RepoProbeOutputSchemaNameSchema = z.enum(['repo-scan']);
 export const RepoProbeFailureKindSchema = z.enum([
   'auth',
   'transport',
@@ -171,7 +171,7 @@ export const RepoProbeOutcomeSchema = z.discriminatedUnion('status', [
 export const RepoProbeCoverageSchema = z.object({
   decisionId: z.string().min(1),
   optionId: z.string().min(1),
-  status: z.enum(['complete', 'partial', 'missing']),
+  status: z.enum(['complete', 'missing']),
   succeededProbeTypes: z.array(RepoProbeTypeSchema).default([]),
   missingProbeTypes: z.array(RepoProbeTypeSchema).default([]),
 });

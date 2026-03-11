@@ -56,7 +56,7 @@ test('runCodexProbe parses a successful codex result', async () => {
 
     assert.equal(result.decisionId, 'dec_probe');
     assert.equal(result.optionId, 'opt_file');
-    assert.equal(result.probeType, 'impact_scan');
+    assert.equal(result.probeType, 'repo_scan');
     assert.equal(result.attempts, 1);
     assert.equal(result.summary, 'Looks contained.');
     assert.equal(result.estimatedComplexity, 'low');
@@ -86,7 +86,7 @@ test('runCodexProbe times out and returns a failed probe outcome', async () => {
   assert.deepEqual(child.killedSignals, ['SIGTERM']);
 });
 
-test('runCodexProbe classifies auth-like timeouts as non-retryable auth failures', async () => {
+test('runCodexProbe classifies auth-like timeouts as retryable timeout failures', async () => {
   const localPath = await mkdtemp(join(tmpdir(), 'benchmemo-codex-auth-timeout-'));
 
   const result = await runCodexProbe(makeRequest(localPath), {
@@ -103,9 +103,61 @@ test('runCodexProbe classifies auth-like timeouts as non-retryable auth failures
   });
 
   assert.equal(result.status, 'failed');
+  assert.equal(result.failureKind, 'timeout');
+  assert.equal(result.failurePhase, 'execution');
+  assert.equal(result.retryable, true);
+});
+
+test('runCodexProbe classifies unauthorized non-zero exits as auth failures', async () => {
+  const localPath = await mkdtemp(join(tmpdir(), 'benchmemo-codex-auth-exit-'));
+
+  const result = await runCodexProbe(makeRequest(localPath), {
+    spawnFn() {
+      const child = new FakeChild();
+
+      queueMicrotask(() => {
+        child.stderr.write('authentication failed: HTTP 403 Forbidden\n');
+        child.stdout.end();
+        child.stderr.end();
+        child.exitCode = 1;
+        child.emit('close', 1);
+      });
+
+      return child.asChildProcess();
+    },
+    timeoutMs: 1_000,
+  });
+
+  assert.equal(result.status, 'failed');
   assert.equal(result.failureKind, 'auth');
   assert.equal(result.failurePhase, 'execution');
   assert.equal(result.retryable, false);
+});
+
+test('runCodexProbe classifies connectivity failures as transport failures', async () => {
+  const localPath = await mkdtemp(join(tmpdir(), 'benchmemo-codex-transport-exit-'));
+
+  const result = await runCodexProbe(makeRequest(localPath), {
+    spawnFn() {
+      const child = new FakeChild();
+
+      queueMicrotask(() => {
+        child.stderr.write('failed to connect to websocket: connection reset by peer\n');
+        child.stdout.end();
+        child.stderr.end();
+        child.exitCode = 1;
+        child.emit('close', 1);
+      });
+
+      return child.asChildProcess();
+    },
+    timeoutMs: 1_000,
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(result.failureKind, 'transport');
+  assert.equal(result.failurePhase, 'execution');
+  assert.equal(result.retryable, true);
 });
 
 test('runCodexProbe returns stderr and event summaries on non-zero exit', async () => {
@@ -171,12 +223,12 @@ function makeRequest(localPath: string): RepoProbeRequest {
   return {
     decisionId: 'dec_probe',
     optionId: 'opt_file',
-    probeType: 'impact_scan',
+    probeType: 'repo_scan',
     repoName: 'jkordish/benchmemo',
     localPath,
     paths: ['apps/api'],
-    question: 'Inspect impact',
-    outputSchemaName: 'impact-scan',
+    question: 'Inspect repository impact and risk',
+    outputSchemaName: 'repo-scan',
     sandbox: 'read-only',
   };
 }

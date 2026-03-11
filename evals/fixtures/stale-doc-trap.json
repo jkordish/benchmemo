@@ -156,13 +156,13 @@
   },
   "repoProbes": [
     {
-      "taskId": "probe_stale_keep_impact",
+      "taskId": "probe_stale_keep_repo",
       "decisionId": "fixture_stale_docs",
       "optionId": "opt_keep",
-      "probeType": "impact_scan",
+      "probeType": "repo_scan",
       "status": "succeeded",
       "attempts": 1,
-      "summary": "The current store is still concentrated in one place with no active SQLite support in the repo.",
+      "summary": "The current store is still concentrated in one place with no active SQLite support in the repo, and keeping it preserves the tested path for this milestone.",
       "touchedAreas": ["apps/api/src/store/decision-store.ts"],
       "hiddenDependencies": [],
       "likelyTestSurface": ["apps/api/src/server.test.ts"],
@@ -170,33 +170,16 @@
       "operationalRisks": [],
       "estimatedComplexity": "low",
       "confidence": 0.83,
-      "rawArtifactPath": "/tmp/stale_keep_impact.json"
+      "rawArtifactPath": "/tmp/stale_keep_repo.json"
     },
     {
-      "taskId": "probe_stale_keep_risk",
-      "decisionId": "fixture_stale_docs",
-      "optionId": "opt_keep",
-      "probeType": "risk_scan",
-      "status": "succeeded",
-      "attempts": 1,
-      "summary": "Keeping the store preserves the tested path for this milestone.",
-      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
-      "hiddenDependencies": [],
-      "likelyTestSurface": ["apps/api/src/server.test.ts"],
-      "migrationHazards": [],
-      "operationalRisks": [],
-      "estimatedComplexity": "low",
-      "confidence": 0.8,
-      "rawArtifactPath": "/tmp/stale_keep_risk.json"
-    },
-    {
-      "taskId": "probe_stale_doc_impact",
+      "taskId": "probe_stale_doc_repo",
       "decisionId": "fixture_stale_docs",
       "optionId": "opt_follow_doc",
-      "probeType": "impact_scan",
+      "probeType": "repo_scan",
       "status": "succeeded",
       "attempts": 1,
-      "summary": "Following the old note would require adding SQLite support that is not present in the current repo.",
+      "summary": "Following the old note would require adding SQLite support that is not present in the current repo, plus migration and rollback work not justified by current evidence.",
       "touchedAreas": ["apps/api/src/store/decision-store.ts", "apps/api/src/server.test.ts"],
       "hiddenDependencies": [],
       "likelyTestSurface": ["apps/api/src/server.test.ts"],
@@ -204,24 +187,7 @@
       "operationalRisks": [],
       "estimatedComplexity": "medium",
       "confidence": 0.78,
-      "rawArtifactPath": "/tmp/stale_doc_impact.json"
-    },
-    {
-      "taskId": "probe_stale_doc_risk",
-      "decisionId": "fixture_stale_docs",
-      "optionId": "opt_follow_doc",
-      "probeType": "risk_scan",
-      "status": "succeeded",
-      "attempts": 1,
-      "summary": "The repo evidence does not show an urgent correctness need that matches the old note.",
-      "touchedAreas": ["apps/api/src/store/decision-store.ts"],
-      "hiddenDependencies": [],
-      "likelyTestSurface": ["apps/api/src/server.test.ts"],
-      "migrationHazards": ["Rollback handling would need new work."],
-      "operationalRisks": [],
-      "estimatedComplexity": "medium",
-      "confidence": 0.77,
-      "rawArtifactPath": "/tmp/stale_doc_risk.json"
+      "rawArtifactPath": "/tmp/stale_doc_repo.json"
     }
   ],
   "evidenceBundle": {

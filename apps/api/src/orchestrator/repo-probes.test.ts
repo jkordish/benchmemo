@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { RepoProbeFailure, RepoProbeRequest, RepoProbeResult } from '@benchmemo/shared';
-import { mapWithConcurrency, runProbeWithRetry, runRepoProbes } from './repo-probes.js';
+import {
+  getCodexProbeMaxAttempts,
+  getMaxParallelProbes,
+  mapWithConcurrency,
+  runProbeWithRetry,
+  runRepoProbes,
+} from './repo-probes.js';
 
 test('mapWithConcurrency respects the concurrency cap and preserves order', async () => {
   const items = [30, 5, 20, 10, 15];
@@ -89,8 +95,8 @@ test('runRepoProbes synthesizes failed outcomes when preflight is not ready', as
     {
       ...makeRequest(),
       optionId: 'opt_sqlite',
-      probeType: 'risk_scan' as const,
-      outputSchemaName: 'risk-scan' as const,
+      probeType: 'repo_scan' as const,
+      outputSchemaName: 'repo-scan' as const,
     },
   ];
   let probeCalls = 0;
@@ -125,6 +131,31 @@ test('runRepoProbes synthesizes failed outcomes when preflight is not ready', as
   assert.equal(first.failureKind, 'auth');
 });
 
+test('repo probe defaults serialize work with one attempt when env is unset', () => {
+  const previousConcurrency = process.env.BENCHMEMO_MAX_PARALLEL_PROBES;
+  const previousAttempts = process.env.BENCHMEMO_CODEX_PROBE_MAX_ATTEMPTS;
+
+  delete process.env.BENCHMEMO_MAX_PARALLEL_PROBES;
+  delete process.env.BENCHMEMO_CODEX_PROBE_MAX_ATTEMPTS;
+
+  try {
+    assert.equal(getMaxParallelProbes(), 1);
+    assert.equal(getCodexProbeMaxAttempts(), 1);
+  } finally {
+    if (previousConcurrency === undefined) {
+      delete process.env.BENCHMEMO_MAX_PARALLEL_PROBES;
+    } else {
+      process.env.BENCHMEMO_MAX_PARALLEL_PROBES = previousConcurrency;
+    }
+
+    if (previousAttempts === undefined) {
+      delete process.env.BENCHMEMO_CODEX_PROBE_MAX_ATTEMPTS;
+    } else {
+      process.env.BENCHMEMO_CODEX_PROBE_MAX_ATTEMPTS = previousAttempts;
+    }
+  }
+});
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -135,12 +166,12 @@ function makeRequest(): RepoProbeRequest {
   return {
     decisionId: 'dec_probe',
     optionId: 'opt_file',
-    probeType: 'impact_scan',
+    probeType: 'repo_scan',
     repoName: 'jkordish/benchmemo',
     localPath: process.cwd(),
     paths: ['apps/api'],
-    question: 'Inspect impact',
-    outputSchemaName: 'impact-scan',
+    question: 'Inspect repository impact and risk',
+    outputSchemaName: 'repo-scan',
     sandbox: 'read-only',
   };
 }
@@ -173,7 +204,7 @@ function makeFailure(request: RepoProbeRequest, attempts: number): RepoProbeFail
     probeType: request.probeType,
     status: 'failed',
     attempts,
-    errorMessage: 'codex exec timed out after 30000ms',
+    errorMessage: 'codex exec timed out after 45000ms',
     failureKind: 'timeout',
     failurePhase: 'execution',
     retryable: true,

@@ -1,8 +1,8 @@
 import { RepoProbeFailureSchema, RepoProbeOutcome, RepoProbeRequest } from '@benchmemo/shared';
 import { runCodexPreflight, runCodexProbe, type CodexPreflightResult } from '@benchmemo/codex-runner';
 
-const DEFAULT_MAX_PARALLEL_PROBES = 2;
-const DEFAULT_CODEX_PROBE_MAX_ATTEMPTS = 2;
+const DEFAULT_MAX_PARALLEL_PROBES = 1;
+const DEFAULT_CODEX_PROBE_MAX_ATTEMPTS = 1;
 const DEFAULT_RETRY_BACKOFF_MS = 1_000;
 
 export interface RunRepoProbesOptions {

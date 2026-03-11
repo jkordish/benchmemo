@@ -16,7 +16,7 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = join(__dirname, '..', 'schemas');
-const DEFAULT_CODEX_PROBE_TIMEOUT_MS = 30_000;
+const DEFAULT_CODEX_PROBE_TIMEOUT_MS = 45_000;
 
 export type CodexJsonEvent = Record<string, unknown>;
 export type SpawnFn = (
@@ -261,10 +261,12 @@ function buildPrompt(req: RepoProbeRequest): string {
     `Question: ${req.question}`,
     'Rules:',
     '- Do not modify files.',
+    '- Stay within the scoped paths only.',
     '- Keep the investigation narrow and stop once the requested schema can be filled with concrete evidence.',
     '- Prefer rg plus targeted file reads over broad repository scans.',
+    '- Inspect only directly referenced files unless a dependency is explicitly discovered.',
     '- Prefer code, config, tests, docs, and infra artifacts over speculation.',
-    '- Cite file paths, symbols, test names, commands, or config blocks whenever possible.',
+    '- Keep citations concise and limited to the most relevant file paths, symbols, test names, commands, or config blocks.',
     '- If evidence is missing, say so briefly instead of continuing to search.',
     '- Return only the JSON schema requested by the harness.',
   ].join('\n');
@@ -319,6 +321,13 @@ function classifyProbeFailure(input: {
   stderrLines: string[];
   events: CodexJsonEvent[];
 }) {
+  if (input.timedOut) {
+    return {
+      failureKind: 'timeout' as const,
+      retryable: true,
+    };
+  }
+
   const haystack = [
     input.errorMessage,
     ...input.stderrLines,
@@ -337,13 +346,6 @@ function classifyProbeFailure(input: {
   if (/(failed to connect|connection|websocket|econn|socket|network|dns|refused|reset|unreachable)/i.test(haystack)) {
     return {
       failureKind: 'transport' as const,
-      retryable: true,
-    };
-  }
-
-  if (input.timedOut) {
-    return {
-      failureKind: 'timeout' as const,
       retryable: true,
     };
   }

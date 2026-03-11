@@ -119,33 +119,18 @@ export class DecisionRunner {
 
     await this.persist('cases_built', optionWork, 'Advocate and skeptic cases built');
 
-    const repoProbeRequests = frame.options.flatMap((option) => {
-      const baseReq = {
-        decisionId: frame.decisionId,
-        optionId: option.id,
-        repoName: brief.repo.repoName,
-        localPath: brief.repo.localPath,
-        branch: brief.repo.branch,
-        paths: brief.repo.paths,
-        sandbox: 'read-only' as const,
-      };
-
-      const impact: RepoProbeRequest = {
-        ...baseReq,
-        probeType: 'impact_scan',
-        question: `Analyze repository impact for option ${option.name}: ${option.description}`,
-        outputSchemaName: 'impact-scan',
-      };
-
-      const risk: RepoProbeRequest = {
-        ...baseReq,
-        probeType: 'risk_scan',
-        question: `Analyze operational and migration risk for option ${option.name}: ${option.description}`,
-        outputSchemaName: 'risk-scan',
-      };
-
-      return [impact, risk];
-    });
+    const repoProbeRequests = frame.options.map((option) => ({
+      decisionId: frame.decisionId,
+      optionId: option.id,
+      repoName: brief.repo.repoName,
+      localPath: brief.repo.localPath,
+      branch: brief.repo.branch,
+      paths: brief.repo.paths,
+      sandbox: 'read-only' as const,
+      probeType: 'repo_scan' as const,
+      question: `Analyze repository impact, hidden dependencies, likely test surface, migration hazards, and operational risk for option ${option.name}: ${option.description}`,
+      outputSchemaName: 'repo-scan' as const,
+    })) satisfies RepoProbeRequest[];
 
     const repoProbes = await this.runRepoProbes(repoProbeRequests);
     const repoProbeCoverage = this.buildRepoProbeCoverage(frame, repoProbeRequests, repoProbes);
@@ -285,9 +270,7 @@ export class DecisionRunner {
         status:
           succeededProbeTypes.length === expectedProbeTypes.length
             ? 'complete'
-            : succeededProbeTypes.length > 0
-              ? 'partial'
-              : 'missing',
+            : 'missing',
         succeededProbeTypes,
         missingProbeTypes,
       };

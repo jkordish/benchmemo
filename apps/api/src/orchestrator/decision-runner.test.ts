@@ -24,10 +24,8 @@ test('DecisionRunner degrades to need_more_evidence when required repo probes ar
       judgeRecommendation: brief.options[0].id,
     }),
     runRepoProbes: async () => [
-      makeSucceededProbe(brief.id, brief.options[0].id, 'impact_scan'),
-      makeFailedProbe(brief.id, brief.options[0].id, 'risk_scan'),
-      makeSucceededProbe(brief.id, brief.options[1].id, 'impact_scan'),
-      makeSucceededProbe(brief.id, brief.options[1].id, 'risk_scan'),
+      makeFailedProbe(brief.id, brief.options[0].id),
+      makeSucceededProbe(brief.id, brief.options[1].id),
     ],
   });
 
@@ -64,10 +62,8 @@ test('DecisionRunner preserves judge verdict when repo evidence is complete', as
       judgeRecommendation: brief.options[0].id,
     }),
     runRepoProbes: async () => [
-      makeSucceededProbe(brief.id, brief.options[0].id, 'impact_scan'),
-      makeSucceededProbe(brief.id, brief.options[0].id, 'risk_scan'),
-      makeSucceededProbe(brief.id, brief.options[1].id, 'impact_scan'),
-      makeSucceededProbe(brief.id, brief.options[1].id, 'risk_scan'),
+      makeSucceededProbe(brief.id, brief.options[0].id),
+      makeSucceededProbe(brief.id, brief.options[1].id),
     ],
   });
 
@@ -88,25 +84,13 @@ test('DecisionRunner deduplicates repeated platform failures into one shared rep
       judgeRecommendation: null,
     }),
     runRepoProbes: async () => [
-      makeFailedProbe(brief.id, brief.options[0].id, 'impact_scan', {
+      makeFailedProbe(brief.id, brief.options[0].id, {
         failureKind: 'auth',
         failurePhase: 'execution',
         retryable: false,
         errorMessage: 'Codex login is not ready.',
       }),
-      makeFailedProbe(brief.id, brief.options[0].id, 'risk_scan', {
-        failureKind: 'auth',
-        failurePhase: 'execution',
-        retryable: false,
-        errorMessage: 'Codex login is not ready.',
-      }),
-      makeFailedProbe(brief.id, brief.options[1].id, 'impact_scan', {
-        failureKind: 'auth',
-        failurePhase: 'execution',
-        retryable: false,
-        errorMessage: 'Codex login is not ready.',
-      }),
-      makeFailedProbe(brief.id, brief.options[1].id, 'risk_scan', {
+      makeFailedProbe(brief.id, brief.options[1].id, {
         failureKind: 'auth',
         failurePhase: 'execution',
         retryable: false,
@@ -289,16 +273,16 @@ function makeRunAgent(input: {
 function makeSucceededProbe(
   decisionId: string,
   optionId: string,
-  probeType: RepoProbeResult['probeType']
+  overrides: Partial<RepoProbeResult> = {}
 ): RepoProbeResult {
   return {
-    taskId: `${optionId}_${probeType}`,
+    taskId: `${optionId}_repo_scan`,
     decisionId,
     optionId,
-    probeType,
+    probeType: 'repo_scan',
     status: 'succeeded',
     attempts: 1,
-    summary: `Succeeded ${probeType}`,
+    summary: `Succeeded repo scan for ${optionId}`,
     touchedAreas: ['apps/api'],
     hiddenDependencies: [],
     likelyTestSurface: [],
@@ -306,24 +290,24 @@ function makeSucceededProbe(
     operationalRisks: [],
     estimatedComplexity: 'medium',
     confidence: 0.7,
-    rawArtifactPath: `/tmp/${optionId}_${probeType}.json`,
+    rawArtifactPath: `/tmp/${optionId}_repo_scan.json`,
+    ...overrides,
   };
 }
 
 function makeFailedProbe(
   decisionId: string,
   optionId: string,
-  probeType: RepoProbeFailure['probeType'],
   overrides: Partial<RepoProbeFailure> = {}
 ): RepoProbeFailure {
   return {
-    taskId: `${optionId}_${probeType}_failed`,
+    taskId: `${optionId}_repo_scan_failed`,
     decisionId,
     optionId,
-    probeType,
+    probeType: 'repo_scan',
     status: 'failed',
-    attempts: 2,
-    errorMessage: 'codex exec timed out after 30000ms',
+    attempts: 1,
+    errorMessage: 'codex exec timed out after 45000ms',
     failureKind: 'timeout',
     failurePhase: 'execution',
     retryable: true,

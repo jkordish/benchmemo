@@ -45,6 +45,8 @@ pnpm evals:live
 Notes:
 - `pnpm run doctor` verifies `OPENAI_API_KEY`, the local `codex` binary, and `codex login status`.
 - `pnpm run doctor` is a lightweight readiness check; it does not execute a live `codex exec` probe.
+- BenchMemo now runs one merged read-only `repo_scan` per option, rather than separate impact and risk probes.
+- Repo probes default to a conservative local posture: `BENCHMEMO_MAX_PARALLEL_PROBES=1`, `BENCHMEMO_CODEX_PROBE_TIMEOUT_MS=45000`, and `BENCHMEMO_CODEX_PROBE_MAX_ATTEMPTS=1`.
 - `pnpm evals` runs 5 deterministic stage-driven fixtures:
   - easy winner
   - stale-doc trap
@@ -52,6 +54,8 @@ Notes:
   - need-more-evidence
   - rollback-risk
 - `pnpm evals:live` runs a real end-to-end smoke against the local API path and reports `PASS`, `FAIL`, or `SKIPPED`.
+- Live smoke failures include the decision id, run timing, repo probe stage timing, and grouped failure kinds with example errors.
+- With serialized 45-second probes, `pnpm evals:live` can take several minutes to finish.
 - On current `pnpm`, `pnpm doctor` is reserved by pnpm itself, so use `pnpm run doctor` for the BenchMemo doctor command.
 
 ## HTTP API
